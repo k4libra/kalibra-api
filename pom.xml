@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.blazebit</groupId>
+    <groupId>com.kalibra</groupId>
     <artifactId>kalibra-api</artifactId>
     <version>0.1.0</version>
     <name>kalibra-api</name>
