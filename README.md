@@ -53,18 +53,6 @@ the following features:
 On successful registration it publishes the `UserRegistered` domain event, allowing
 other contexts to react in-process while IAM stays decoupled from them.
 
-### Profiles Context
-
-The Profiles Context is responsible for managing the personal data of each account
-holder. It includes the following features:
-
-- Automatically create a profile when a user registers.
-- Get the current holder's profile.
-- Update the current holder's profile.
-
-It reacts to the `UserRegistered` domain event published by the IAM Context to create
-the matching profile automatically, keeping both contexts decoupled.
-
 ## Technology Stack
 
 | Concern            | Technology                               |
@@ -84,14 +72,12 @@ Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starte
 com.kalibra.api
 ├── iam/        Core — authentication. User aggregate (Email + HashedPassword VOs),
 │               issues its own JWT and publishes the UserRegistered event.
-├── profiles/   Supporting — personal data. Profile aggregate (holderId),
-│               reacts to UserRegistered to create the profile automatically.
 └── shared/     Cross-cutting configuration (Flyway per module, JWT security).
 ```
 
-Inter-module communication is a single in-process domain event (`UserRegistered`). No
-Open Host Service is exposed, because no synchronous call between `iam` and `profiles`
-is required at this scope.
+Inter-module communication goes through in-process domain events (`UserRegistered`).
+No Open Host Service is exposed, because no synchronous call between modules is
+required at this scope.
 
 ## Getting Started
 
@@ -191,8 +177,6 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ### OWASP coverage (SSDLC)
 
-- **A01 (Broken Access Control / IDOR-BOLA):** every `profiles` repository is scoped by
-  `holderId`; `/profiles/me` never exposes an `{id}` in the URL.
 - **A02 (Cryptographic Failures):** BCrypt password hashing, signed JWT (never `alg: none`).
 - **A03 (Injection):** Spring Data JPA plus Bean Validation at the edge, no concatenated SQL.
 - **A04 (Insecure Design):** sign-in returns a single generic error, never revealing whether the
@@ -208,14 +192,12 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `POST` | `/api/v1/authentication/sign-up`  | No                             |
 | `POST` | `/api/v1/authentication/sign-in`  | No                             |
 | `POST` | `/api/v1/authentication/sign-out` | No                             |
-| `GET`  | `/api/v1/profiles/me`             | Yes (holderId from JWT cookie) |
-| `PUT`  | `/api/v1/profiles/me`             | Yes (holderId from JWT cookie) |
 | `GET`  | `/actuator/health`                | No                             |
 
 ## Error Handling
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`, e.g.
-`AuthenticationControllerAdvice`, `ProfilesControllerAdvice`) are caught by
+`AuthenticationControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —
 never the exception message or stack trace — while logging the real cause server-side.
 Spring MVC's own well-known exceptions (malformed JSON, validation errors, wrong HTTP
@@ -227,11 +209,6 @@ method) keep their correct `4xx` status untouched.
 mvn test -Dtest=ArchitectureTest   # module boundaries (ArchUnit) — no Postgres needed
 mvn test                           # full suite — requires Postgres (docker compose up -d)
 ```
-
-Every layer has a worked test example to copy from when adding a new module: `ProfileTest`
-(domain), `ProfileCommandServiceImplTest` (application, Mockito), `ProfileRepositoryImplTest`
-(infrastructure, Mockito), `ProfilesControllerTest` (interfaces, `@WebMvcTest` with the real
-security chain imported), and `UserRegisteredEventHandlerTest` (domain event handler).
 
 CI (`.github/workflows/ci.yml`) runs the full suite against an ephemeral PostgreSQL on
 every push and pull request to `main`, `develop`, and `release/**` — see

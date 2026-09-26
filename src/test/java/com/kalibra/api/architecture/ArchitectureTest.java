@@ -69,16 +69,13 @@ class ArchitectureTest {
                 .resideInAnyPackage(
                         "com.kalibra.api.iam.domain..",
                         "com.kalibra.api.iam.application..",
-                        "com.kalibra.api.iam.infrastructure..",
-                        "com.kalibra.api.profiles.domain..",
-                        "com.kalibra.api.profiles.application..",
-                        "com.kalibra.api.profiles.infrastructure..")
+                        "com.kalibra.api.iam.infrastructure..")
                 .check(importedClasses);
     }
 
     // Naming — fachadas OHS (si se agregan) viven en interfaces.acl.
-    // allowEmptyShould(true): hoy ningún BC necesita fachada OHS (profiles solo
-    // consume el evento UserRegistered), la regla queda lista para cuando se agregue una.
+    // allowEmptyShould(true): hoy ningún BC necesita fachada OHS, la regla queda lista
+    // para cuando se agregue una.
     @Test
     void contextFacadesResideInInterfacesAcl() {
         classes().that().haveSimpleNameEndingWith("ContextFacade")
