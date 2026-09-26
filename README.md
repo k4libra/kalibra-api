@@ -81,7 +81,7 @@ Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starte
 ## Project Structure
 
 ```
-studio.quedena.kalibra
+com.kalibra.api
 ├── iam/        Core — authentication. User aggregate (Email + HashedPassword VOs),
 │               issues its own JWT and publishes the UserRegistered event.
 ├── profiles/   Supporting — personal data. Profile aggregate (holderId),
