@@ -1,9 +1,9 @@
 spring:
   application:
-    name: qs-template-api
+    name: kalibra-api
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:qs_template_db}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:kalibra_db}
     username: ${DB_USER:quedena}
     password: ${DB_PASSWORD}
 
@@ -28,6 +28,11 @@ template:
 
 cors:
   allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}
+
+documentation:
+  application:
+    description: Kalibra API
+    version: '@project.version@'
 
 management:
   endpoints:
