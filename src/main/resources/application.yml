@@ -31,7 +31,7 @@ cors:
 
 documentation:
   application:
-    description: Kalibra API
+    description: Kalibra API modular monolith
     version: '@project.version@'
 
 management:

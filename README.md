@@ -1,14 +1,14 @@
-# QS Template API
+# Kalibra API
 
-![CI](https://github.com/quedena-studio-ws/qs-template-api/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/k4libra/kalibra-api/actions/workflows/ci.yml/badge.svg)
 
 ## Summary
 
-QS Template API, the base template for Quedena Studio backend services, built with
-Java, the Spring Boot Framework, and Spring Data JPA on a PostgreSQL database,
-following Domain-Driven Design. Each bounded context lives as an internal module
-inside a single deployable, and contexts communicate in-process through domain
-events rather than over the network.
+Kalibra API is the backend for the Kalibra platform, built with Java, the Spring
+Boot Framework, and Spring Data JPA on a PostgreSQL database, following
+Domain-Driven Design. Each bounded context lives as an internal module inside a
+single deployable, and contexts communicate in-process through domain events
+rather than over the network.
 
 ## Features
 
@@ -47,7 +47,8 @@ the following features:
   `ROLE_<name>` authorities via `JwtAuthenticationFilter` — protect an endpoint with
   `.hasAuthority("ROLE_ADMINISTRATOR")` in `SecurityConfig` (see the example comment
   there). Add new roles by extending the `Role` enum; there is no built-in endpoint to
-  grant a role — a template consumer decides that flow when it derives a project.
+  grant a role — that flow is decided by the Kalibra product requirements as the
+  application evolves.
 
 On successful registration it publishes the `UserRegistered` domain event, allowing
 other contexts to react in-process while IAM stays decoupled from them.
@@ -66,21 +67,21 @@ the matching profile automatically, keeping both contexts decoupled.
 
 ## Technology Stack
 
-| Concern | Technology |
-|---|---|
-| Language | Java 25 |
-| Framework | Spring Boot 3.5.15 |
-| Persistence | Spring Data JPA · PostgreSQL 17 · Flyway |
-| Mapping | MapStruct 1.6.3 |
-| Security | Spring Security · JWT (jjwt 0.12.6) |
-| Architecture tests | ArchUnit 1.4.1 |
+| Concern            | Technology                               |
+| ------------------ | ---------------------------------------- |
+| Language           | Java 25                                  |
+| Framework          | Spring Boot 3.5.15                       |
+| Persistence        | Spring Data JPA · PostgreSQL 17 · Flyway |
+| Mapping            | MapStruct 1.6.3                          |
+| Security           | Spring Security · JWT (jjwt 0.12.6)      |
+| Architecture tests | ArchUnit 1.4.1                           |
 
 Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starter-parent` BOM.
 
 ## Project Structure
 
 ```
-studio.quedena.template
+studio.quedena.kalibra
 ├── iam/        Core — authentication. User aggregate (Email + HashedPassword VOs),
 │               issues its own JWT and publishes the UserRegistered event.
 ├── profiles/   Supporting — personal data. Profile aggregate (holderId),
@@ -110,13 +111,13 @@ cp .env.example .env   # set DB_PASSWORD and JWT_SECRET (openssl rand -base64 64
 
 ```bash
 docker compose up -d   # starts PostgreSQL 17 only
-mvn spring-boot:run    # or run TemplateApplication from the IDE
+mvn spring-boot:run    # or run the application from the IDE
 ```
 
 ## Git Workflow
 
 <p align="justify">
-This template follows a lightweight Git Flow. <code>main</code> only ever holds
+This project follows a lightweight Git Flow. <code>main</code> only ever holds
 deployable code — nobody pushes to it directly, and no work happens on it beyond
 merging a finished <code>release/*</code> (or an urgent <code>hotfix/*</code>). Every
 merge into <code>main</code> is a deploy trigger, so it stays tagged with the version
@@ -162,8 +163,8 @@ develop      ●───●───────●───●───●─�
 ```
 
 <p align="justify">
-This template ships with only <code>main</code>, since a template has no in-flight work
-to integrate. Every project generated from it should create <code>develop</code> right
+This repository starts with only <code>main</code>, since it is the active Kalibra
+project and not a generated starter. The team should create <code>develop</code> right
 away — <code>git checkout -b develop && git push -u origin develop</code> — before
 opening the first <code>feature/*</code> branch. <code>main</code> is protected: it only
 accepts pull requests, each requiring the CI <code>build</code> job to pass.
@@ -202,14 +203,14 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ## API Endpoints
 
-| Method | Path | Auth |
-|---|---|---|
-| `POST` | `/api/v1/authentication/sign-up` | No |
-| `POST` | `/api/v1/authentication/sign-in` | No |
-| `POST` | `/api/v1/authentication/sign-out` | No |
-| `GET`  | `/api/v1/profiles/me` | Yes (holderId from JWT cookie) |
-| `PUT`  | `/api/v1/profiles/me` | Yes (holderId from JWT cookie) |
-| `GET`  | `/actuator/health` | No |
+| Method | Path                              | Auth                           |
+| ------ | --------------------------------- | ------------------------------ |
+| `POST` | `/api/v1/authentication/sign-up`  | No                             |
+| `POST` | `/api/v1/authentication/sign-in`  | No                             |
+| `POST` | `/api/v1/authentication/sign-out` | No                             |
+| `GET`  | `/api/v1/profiles/me`             | Yes (holderId from JWT cookie) |
+| `PUT`  | `/api/v1/profiles/me`             | Yes (holderId from JWT cookie) |
+| `GET`  | `/actuator/health`                | No                             |
 
 ## Error Handling
 

@@ -11,11 +11,11 @@
         <relativePath/>
     </parent>
 
-    <groupId>studio.quedena</groupId>
-    <artifactId>qs-template-api</artifactId>
+    <groupId>com.blazebit</groupId>
+    <artifactId>kalibra-api</artifactId>
     <version>0.1.0</version>
-    <name>qs-template-api</name>
-    <description>QS backend template — monolito modular (Bounded Contexts: iam, profiles)</description>
+    <name>kalibra-api</name>
+    <description>Kalibra API</description>
 
     <properties>
         <java.version>25</java.version>
