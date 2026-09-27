@@ -100,8 +100,37 @@ still to be decided, and `FileSystemMaterialStorageService` is a provisional loc
 (`MATERIALS_STORAGE_DIR`). Moving to S3, Azure Blob or similar means adding another
 implementation of that interface.
 
-Students will see the subtopics of the courses they were invited to once the enrollment
-context exists; it will consume `CurriculumContextFacade`.
+### Enrollment Context
+
+The Enrollment Context owns the invitations a teacher sends to their courses and the
+enrollments they turn into. It includes the following features:
+
+- Invite a registered student to one of my courses by email. The invitation stays `PENDING`
+  for 3 days and the student is notified. An email without a student account answers `422`
+  and notifies nobody; a course of another teacher answers `404`.
+- A student has at most one pending invitation per course and is enrolled at most once:
+  inviting a student who is already invited or enrolled answers `409`.
+- Cancel a pending invitation, or resend a canceled or expired one: it is `PENDING` again
+  for 3 more days and the student is notified again. Resending in any other state is `409`.
+- Students list their pending invitations (course, teacher email, sent and expiry dates) and
+  accept or reject them. Accepting enrolls the student in the course; rejecting does not.
+- `InvitationExpirationJob` runs every minute and marks as `EXPIRED` every pending
+  invitation past its validity. Past its validity an invitation can no longer be answered,
+  even before the job marks it.
+- Teachers list their sent invitations and their enrolled students, both grouped by course.
+  Every course of the teacher is listed, including those without invitations or students.
+- Exposes the `EnrollmentContextFacade` (OHS) so other contexts can check, in-process,
+  whether a student is enrolled in a course and fetch its roster.
+
+One transaction, one aggregate: accepting changes the `Invitation`, and
+`InvitationAcceptedEventHandler` creates the `Enrollment` after the commit. If that handler
+fails, `EnrollmentContextFacade.isStudentEnrolled` finds the accepted invitation and creates
+the enrollment then (self-healing). Invitation notifications go through
+`InvitationNotificationService`; the current implementation
+(`PushInvitationNotificationService`) only logs until the mobile push provider is defined.
+
+Students will see the subtopics of the courses they are enrolled in once the progress
+context exists: it composes `EnrollmentContextFacade` and `CurriculumContextFacade`.
 
 ## Technology Stack
 
@@ -127,14 +156,17 @@ com.kalibra.api
 ├── curriculum/ Supporting — courses and their material. Course (with Subtopic entities),
 │               CurricularMaterial and TeacherWorkspace aggregates; exposes
 │               CurriculumContextFacade.
+├── enrollment/ Supporting — invitations and enrollments. Invitation and Enrollment
+│               aggregates; consumes IamContextFacade and CurriculumContextFacade, exposes
+│               EnrollmentContextFacade.
 └── shared/     Cross-cutting configuration (Flyway per module, JWT security) and the
                 inter-module contracts (shared/contracts).
 ```
 
 Inter-module communication goes through in-process domain events (`UserRegistered`) and
-two Open Host Services — `IamContextFacade` (`iam/interfaces/acl`) and
-`CurriculumContextFacade` (`curriculum/interfaces/acl`) — whose contract types live in
-`shared/contracts/iam` and `shared/contracts/curriculum`.
+three Open Host Services — `IamContextFacade` (`iam/interfaces/acl`),
+`CurriculumContextFacade` (`curriculum/interfaces/acl`) and `EnrollmentContextFacade`
+(`enrollment/interfaces/acl`) — whose contract types live in `shared/contracts/<module>`.
 
 ## Getting Started
 
@@ -241,8 +273,11 @@ answers `401` when the cookie is missing or invalid.
 On top of that, endpoints are restricted by role (the `roles` claim of the JWT), and a valid
 session with the wrong role answers `403`:
 
-- `TEACHER` only: everything under `/api/v1/courses/**` and `/api/v1/teachers/**`.
-- `STUDENT` only: `PUT /api/v1/student-preferences/me/daily-reminder`.
+- `TEACHER` only: everything under `/api/v1/courses/**`, `/api/v1/teachers/**`,
+  `/api/v1/course-invitation-groups/**` and `/api/v1/course-rosters/**`, plus sending,
+  canceling and resending invitations.
+- `STUDENT` only: `PUT /api/v1/student-preferences/me/daily-reminder`, listing my pending
+  invitations and accepting or rejecting them.
 - Any authenticated user: reading preferences and switching dark mode.
 
 The JWT never travels in the response body or a header the client sets manually: on
@@ -263,8 +298,10 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 - **A01 (Broken Access Control / IDOR-BOLA):** every resource is resolved against the JWT
   `holderId`. `student-preferences` and the teacher workspace are only reachable through
   `/me`; courses and their material take an `{id}`, but the repository is always queried by
-  `id` + `holderId`, so a course of another teacher answers `404`, never its data. Uploaded
-  files are stored under server-generated names, never a path chosen by the client.
+  `id` + `holderId`, so a course of another teacher answers `404`, never its data. An
+  invitation is resolved by `id` + teacher `holderId` (cancel, resend) or `id` + student
+  (accept, reject), so someone else's invitation answers `404`. Uploaded files are stored
+  under server-generated names, never a path chosen by the client.
 - **A02 (Cryptographic Failures):** BCrypt password hashing, signed JWT (never `alg: none`).
 - **A03 (Injection):** Spring Data JPA plus Bean Validation at the edge, no concatenated SQL.
 - **A04 (Insecure Design):** sign-in returns a single generic error, never revealing whether the
@@ -290,6 +327,14 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | `TEACHER` (own course only)  |
 | `GET`  | `/api/v1/teachers/me/workspace`                         | `TEACHER`                    |
 | `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | `TEACHER` (own course only)  |
+| `POST` | `/api/v1/invitations`                                   | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/invitations?status=PENDING`                    | `STUDENT` (own invitations)  |
+| `POST` | `/api/v1/invitations/{id}/cancellations`                | `TEACHER` (own invitation)   |
+| `POST` | `/api/v1/invitations/{id}/renewals`                     | `TEACHER` (own invitation)   |
+| `POST` | `/api/v1/invitations/{id}/acceptances`                  | `STUDENT` (own invitation)   |
+| `POST` | `/api/v1/invitations/{id}/rejections`                   | `STUDENT` (own invitation)   |
+| `GET`  | `/api/v1/course-invitation-groups`                      | `TEACHER` (own courses only) |
+| `GET`  | `/api/v1/course-rosters`                                | `TEACHER` (own courses only) |
 | `GET`  | `/actuator/health`                                      | No                           |
 | `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                           |
 
@@ -304,6 +349,12 @@ Curriculum errors follow the same format: a course without subtopics is `422`, a
 that does not exist or belongs to another teacher is `404`, an unsupported material format
 is `415`, a subtopic outside the course or an empty file is `400`, and a file above the size
 limit is `413`.
+
+Enrollment errors too: an email without a student account is `422`; a course or an
+invitation of someone else is `404`; answering or canceling an invitation that is no longer
+pending (or past its validity), resending one that is neither canceled nor expired, and
+inviting a student already invited or enrolled are `409`; a `status` filter other than
+`PENDING` is `400`.
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —
