@@ -4,7 +4,9 @@ import java.util.regex.Pattern;
 
 public record Email(String value) {
 
-    private static final Pattern FORMAT = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    public static final String REGEX = "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$";
+
+    private static final Pattern FORMAT = Pattern.compile(REGEX);
 
     public Email {
         if (value == null || !FORMAT.matcher(value).matches()) {

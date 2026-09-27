@@ -5,6 +5,7 @@ import com.kalibra.api.iam.domain.model.commands.SignInCommand;
 import com.kalibra.api.iam.domain.model.commands.SignUpCommand;
 import com.kalibra.api.iam.domain.model.valueobjects.Email;
 import com.kalibra.api.iam.domain.model.valueobjects.Role;
+import com.kalibra.api.iam.interfaces.rest.resources.AuthenticatedUserResource;
 import com.kalibra.api.iam.interfaces.rest.resources.SignInResource;
 import com.kalibra.api.iam.interfaces.rest.resources.SignUpResource;
 import com.kalibra.api.iam.interfaces.rest.resources.UserResource;
@@ -19,6 +20,7 @@ public interface UserAssembler {
 
     @Mapping(target = "email", source = "resource.email")
     @Mapping(target = "rawPassword", source = "resource.password")
+    @Mapping(target = "application", source = "resource.application")
     SignUpCommand toCommand(SignUpResource resource);
 
     @Mapping(target = "email", source = "resource.email")
@@ -29,6 +31,11 @@ public interface UserAssembler {
     @Mapping(target = "email", source = "user.email")
     @Mapping(target = "roles", source = "user.roles")
     UserResource toResource(User user);
+
+    @Mapping(target = "id", source = "user.id")
+    @Mapping(target = "email", source = "user.email")
+    @Mapping(target = "roles", source = "user.roles")
+    AuthenticatedUserResource toAuthenticatedResource(User user);
 
     // required by MapStruct: single-field VOs need an explicit converter.
     default Email map(String value) {

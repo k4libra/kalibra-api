@@ -14,5 +14,7 @@ package com.kalibra.api.iam.domain.model.valueobjects;
  */
 public enum Role {
     REGISTERED_USER,
-    ADMINISTRATOR
+    ADMINISTRATOR,
+    STUDENT,
+    TEACHER
 }

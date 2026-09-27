@@ -23,6 +23,7 @@ rather than over the network.
 - In-process Domain Events
 - Scheduled jobs (Spring `@Scheduled`)
 - Multipart file upload behind a pluggable storage service
+- OpenAPI documentation (springdoc, Swagger UI)
 - ArchUnit boundary enforcement
 - Health endpoint (Spring Boot Actuator)
 - Global fallback exception handler
@@ -36,24 +37,38 @@ its own domain, application, infrastructure, and interfaces layers.
 
 ### Identity and Access Management (IAM) Context
 
-The IAM Context is responsible for user registration and authentication. It includes
-the following features:
+The IAM Context is responsible for account access and the personal settings of each
+user. It includes the following features:
 
-- Register a new user (sign-up) with a securely hashed password.
-- Authenticate a user (sign-in) and issue a locally signed JWT.
-- Enforce unique email addresses across accounts.
+- Register a new user (sign-up) with a securely hashed password. The client application
+  decides the role: `MOBILE_APP` registers a `STUDENT`, `WEB_PLATFORM` registers a `TEACHER`.
+- Enforce unique email addresses across accounts, including concurrent sign-ups (`409`).
+- Authenticate a user (sign-in) and issue a locally signed JWT in an httpOnly cookie.
+- Sign-in failures answer a single generic `401` (never revealing whether the email
+  exists) as an RFC 9457 `ProblemDetail`.
+- Sign out by clearing the httpOnly cookie server-side.
 - Role-based access control (RBAC) with accumulable roles (`REGISTERED_USER`,
-  `ADMINISTRATOR`). Roles are additive, not exclusive — an account can hold both at
-  once. Every new account gets `REGISTERED_USER` by default; granting `ADMINISTRATOR`
-  never removes it. Roles travel in the JWT `roles` claim and land as
-  `ROLE_<name>` authorities via `JwtAuthenticationFilter` — protect an endpoint with
-  `.hasAuthority("ROLE_ADMINISTRATOR")` in `SecurityConfig` (see the example comment
-  there). Add new roles by extending the `Role` enum; there is no built-in endpoint to
-  grant a role — that flow is decided by the Kalibra product requirements as the
-  application evolves.
+  `STUDENT`, `TEACHER`, `ADMINISTRATOR`). Roles are additive, not exclusive — an account
+  can hold several at once. Every new account gets `REGISTERED_USER` plus the role of its
+  client application; granting `ADMINISTRATOR` never removes them. Roles travel in the
+  JWT `roles` claim and land as `ROLE_<name>` authorities via `JwtAuthenticationFilter` —
+  protect an endpoint with `.hasAuthority("ROLE_ADMINISTRATOR")` in `SecurityConfig` (see
+  the example comment there). There is no built-in endpoint to grant a role — that flow is
+  decided by the Kalibra product requirements as the application evolves.
+- Student preferences: daily study reminder (enabled + time, in **UTC**) and dark mode.
+  `GET /student-preferences/me` never creates anything — it answers the defaults until the
+  first `PUT`, which creates the record (idempotent upsert). Clients convert the local
+  reminder time to UTC before sending it.
+- `DailyStudyReminderJob` runs every minute (UTC) and notifies the students whose reminder
+  is due through `ReminderNotificationService`. The current implementation
+  (`PushReminderNotificationService`) only logs; the mobile push provider is still to be
+  defined.
+- Exposes the `IamContextFacade` (OHS) so other contexts can ask, in-process, whether an
+  email belongs to a student and fetch a user summary.
 
 On successful registration it publishes the `UserRegistered` domain event, allowing
-other contexts to react in-process while IAM stays decoupled from them.
+other contexts to react in-process while IAM stays decoupled from them. The event is
+audit-only: nothing subscribes to it.
 
 ### Curriculum Context
 
@@ -97,6 +112,7 @@ context exists; it will consume `CurriculumContextFacade`.
 | Persistence        | Spring Data JPA · PostgreSQL 17 · Flyway |
 | Mapping            | MapStruct 1.6.3                          |
 | Security           | Spring Security · JWT (jjwt 0.12.6)      |
+| API documentation  | springdoc-openapi 2.9.1 (Swagger UI)     |
 | Architecture tests | ArchUnit 1.4.1                           |
 
 Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starter-parent` BOM.
@@ -105,8 +121,9 @@ Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starte
 
 ```
 com.kalibra.api
-├── iam/        Core — authentication. User aggregate (Email + HashedPassword VOs),
-│               issues its own JWT and publishes the UserRegistered event.
+├── iam/        Generic — authentication and personal settings. User aggregate
+│               (Email + HashedPassword VOs), StudentPreferences aggregate, issues its own
+│               JWT, publishes the UserRegistered event and exposes IamContextFacade.
 ├── curriculum/ Supporting — courses and their material. Course (with Subtopic entities),
 │               CurricularMaterial and TeacherWorkspace aggregates; exposes
 │               CurriculumContextFacade.
@@ -115,8 +132,9 @@ com.kalibra.api
 ```
 
 Inter-module communication goes through in-process domain events (`UserRegistered`) and
-the `CurriculumContextFacade` Open Host Service (`curriculum/interfaces/acl`), whose
-contract types live in `shared/contracts/curriculum`.
+two Open Host Services — `IamContextFacade` (`iam/interfaces/acl`) and
+`CurriculumContextFacade` (`curriculum/interfaces/acl`) — whose contract types live in
+`shared/contracts/iam` and `shared/contracts/curriculum`.
 
 ## Getting Started
 
@@ -146,6 +164,16 @@ Curricular material settings (all optional):
 docker compose up -d   # starts PostgreSQL 17 only
 mvn spring-boot:run    # or run the application from the IDE
 ```
+
+Flyway creates the `iam` schema and its tables on startup.
+
+### API documentation
+
+With the application running, Swagger UI is available at
+`http://localhost:8080/swagger-ui.html` and the OpenAPI document at `/v3/api-docs`
+(both public). Authentication endpoints need no credentials; for the protected ones,
+call `sign-in` with "Try it out" first — the browser stores the JWT cookie and sends it
+on every later call.
 
 ## Git Workflow
 
@@ -207,7 +235,8 @@ accepts pull requests, each requiring the CI <code>build</code> job to pass.
 
 JWT authentication is enabled by default (`shared/config/SecurityConfig`), in every
 environment — there is no permit-all development mode. `/api/v1/authentication/**`
-stays public (sign-up/sign-in/sign-out); every other endpoint requires a valid JWT.
+stays public (sign-up/sign-in/sign-out); every other endpoint requires a valid JWT and
+answers `401` when the cookie is missing or invalid.
 
 The JWT never travels in the response body or a header the client sets manually: on
 sign-in, it's set as an **httpOnly, `SameSite=Lax` cookie** (`shared/config/JwtCookieFactory`),
@@ -224,11 +253,11 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ### OWASP coverage (SSDLC)
 
-- **A01 (Broken Access Control / IDOR-BOLA):** courses, their material and the teacher
-  workspace are resolved against the JWT `holderId`; a course of another teacher answers
-  `404`, never its data. Uploaded files are stored under server-generated names, never a
-  path chosen by the client.
-
+- **A01 (Broken Access Control / IDOR-BOLA):** every resource is resolved against the JWT
+  `holderId`. `student-preferences` and the teacher workspace are only reachable through
+  `/me`; courses and their material take an `{id}`, but the repository is always queried by
+  `id` + `holderId`, so a course of another teacher answers `404`, never its data. Uploaded
+  files are stored under server-generated names, never a path chosen by the client.
 - **A02 (Cryptographic Failures):** BCrypt password hashing, signed JWT (never `alg: none`).
 - **A03 (Injection):** Spring Data JPA plus Bean Validation at the edge, no concatenated SQL.
 - **A04 (Insecure Design):** sign-in returns a single generic error, never revealing whether the
@@ -239,29 +268,37 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ## API Endpoints
 
-| Method | Path                                                    | Auth                   |
-| ------ | ------------------------------------------------------- | ---------------------- |
-| `POST` | `/api/v1/authentication/sign-up`                        | No                     |
-| `POST` | `/api/v1/authentication/sign-in`                        | No                     |
-| `POST` | `/api/v1/authentication/sign-out`                       | No                     |
-| `POST` | `/api/v1/courses`                                       | Yes                    |
-| `GET`  | `/api/v1/courses`                                       | Yes (own courses only) |
-| `GET`  | `/api/v1/courses/{id}`                                  | Yes (own course only)  |
-| `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | Yes (own course only)  |
-| `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | Yes (own course only)  |
-| `GET`  | `/api/v1/teachers/me/workspace`                         | Yes                    |
-| `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | Yes (own course only)  |
-| `GET`  | `/actuator/health`                                      | No                     |
+| Method | Path                                                    | Auth                     |
+| ------ | ------------------------------------------------------- | ------------------------ |
+| `POST` | `/api/v1/authentication/sign-up`                        | No                       |
+| `POST` | `/api/v1/authentication/sign-in`                        | No                       |
+| `POST` | `/api/v1/authentication/sign-out`                       | No                       |
+| `GET`  | `/api/v1/student-preferences/me`                        | Yes (own preferences)    |
+| `PUT`  | `/api/v1/student-preferences/me/daily-reminder`         | Yes (own preferences)    |
+| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | Yes (own preferences)    |
+| `POST` | `/api/v1/courses`                                       | Yes                      |
+| `GET`  | `/api/v1/courses`                                       | Yes (own courses only)   |
+| `GET`  | `/api/v1/courses/{id}`                                  | Yes (own course only)    |
+| `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | Yes (own course only)    |
+| `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | Yes (own course only)    |
+| `GET`  | `/api/v1/teachers/me/workspace`                         | Yes                      |
+| `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | Yes (own course only)    |
+| `GET`  | `/actuator/health`                                      | No                       |
+| `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                       |
 
 ## Error Handling
 
-Curriculum errors are answered as RFC 9457 `ProblemDetail` bodies: a course without
-subtopics is `422`, a course that does not exist or belongs to another teacher is `404`, an
-unsupported material format is `415`, a subtopic outside the course or an empty file is
-`400`, and a file above the size limit is `413`.
+Business errors are answered as RFC 9457 `ProblemDetail` bodies:
+`AuthenticationControllerAdvice` maps `EmailAlreadyRegisteredException` to `409` and
+`InvalidCredentialsException` to `401`. Requests without a valid JWT cookie get an empty
+`401` from `SecurityConfig`.
 
-Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`, e.g.
-`AuthenticationControllerAdvice`) are caught by
+Curriculum errors follow the same format: a course without subtopics is `422`, a course
+that does not exist or belongs to another teacher is `404`, an unsupported material format
+is `415`, a subtopic outside the course or an empty file is `400`, and a file above the size
+limit is `413`.
+
+Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —
 never the exception message or stack trace — while logging the real cause server-side.
 Spring MVC's own well-known exceptions (malformed JSON, validation errors, wrong HTTP
@@ -270,9 +307,20 @@ method) keep their correct `4xx` status untouched.
 ## Testing
 
 ```bash
-mvn test -Dtest=ArchitectureTest   # module boundaries (ArchUnit) — no Postgres needed
-mvn test                           # full suite — requires Postgres (docker compose up -d)
+mvn test -Dtest=ArchitectureTest   # module boundaries (ArchUnit)
+mvn test                           # full suite
 ```
+
+The suite needs no running database: domain tests are plain JUnit, application and
+persistence tests use Mockito, and controller tests use `@WebMvcTest` with the real
+security chain imported. Each layer of `iam` has its own test (e.g. `UserTest`,
+`StudentPreferencesCommandServiceImplTest`, `StudentPreferencesRepositoryImplTest`,
+`AuthenticationControllerTest`, `DailyStudyReminderJobTest`, `IamContextFacadeImplTest`)
+to copy from when adding a new module.
+
+> If the IDE's Java extension compiles into the same `target/classes` while Maven runs
+> `clean`, the MapStruct implementations can disappear and controller tests fail with a
+> missing `*Assembler` bean. Re-running the build fixes it.
 
 CI (`.github/workflows/ci.yml`) runs the full suite against an ephemeral PostgreSQL on
 every push and pull request to `main`, `develop`, and `release/**` — see
