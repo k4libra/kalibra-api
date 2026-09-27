@@ -249,8 +249,8 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `GET`  | `/api/v1/courses/{id}`                                  | Yes (own course only)  |
 | `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | Yes (own course only)  |
 | `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | Yes (own course only)  |
-| `GET`  | `/api/v1/teacher-workspaces/me`                         | Yes                    |
-| `PUT`  | `/api/v1/teacher-workspaces/me/active-course`           | Yes (own course only)  |
+| `GET`  | `/api/v1/teachers/me/workspace`                         | Yes                    |
+| `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | Yes (own course only)  |
 | `GET`  | `/actuator/health`                                      | No                     |
 
 ## Error Handling
