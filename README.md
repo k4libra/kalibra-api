@@ -21,6 +21,8 @@ rather than over the network.
 - PostgreSQL Database (schema per module)
 - Flyway Migrations (per module)
 - In-process Domain Events
+- Scheduled jobs (Spring `@Scheduled`)
+- Multipart file upload behind a pluggable storage service
 - ArchUnit boundary enforcement
 - Health endpoint (Spring Boot Actuator)
 - Global fallback exception handler
@@ -53,6 +55,39 @@ the following features:
 On successful registration it publishes the `UserRegistered` domain event, allowing
 other contexts to react in-process while IAM stays decoupled from them.
 
+### Curriculum Context
+
+The Curriculum Context owns the courses a teacher creates and the material they upload
+for them. It includes the following features:
+
+- Create a course with its subtopics (at least one, kept in display order). A teacher only
+  ever sees the courses they created: listing is scoped to the JWT `holderId`, and asking
+  for another teacher's course answers `404`.
+- Upload curricular material (PDF, PNG or JPEG) anchored to one or more subtopics of the
+  course. It starts as `PENDING_INGESTION` and turns `READY` (usable to generate exercises)
+  or `INGESTION_ERROR` (with its `failureReason`).
+- List the material of a course, paginated and newest first, with the ingestion status of
+  each file.
+- Keep a teacher workspace with the active course, switchable at any time.
+- Exposes the `CurriculumContextFacade` (OHS) so other contexts can check course ownership
+  and read course summaries and subtopics in-process.
+
+Ingestion is event-driven: `MaterialUploaded` is handled after commit by
+`MaterialUploadedEventHandler`, and `PendingIngestionReconciliationJob` retries every
+material still pending (every 5 minutes by default), so a failure after the commit is never
+lost. Content extraction is delegated to the Adaptive Engine through
+`ExternalCurricularExtractionService`; **that engine is not connected yet**, so material stays
+`PENDING_INGESTION` until it is.
+
+Files never go to PostgreSQL: only their metadata and an opaque `storageReference` are
+stored. The rest of the module only knows `MaterialStorageService`; the storage provider is
+still to be decided, and `FileSystemMaterialStorageService` is a provisional local adapter
+(`MATERIALS_STORAGE_DIR`). Moving to S3, Azure Blob or similar means adding another
+implementation of that interface.
+
+Students will see the subtopics of the courses they were invited to once the enrollment
+context exists; it will consume `CurriculumContextFacade`.
+
 ## Technology Stack
 
 | Concern            | Technology                               |
@@ -72,12 +107,16 @@ Lombok, Flyway, and the PostgreSQL driver are managed by the `spring-boot-starte
 com.kalibra.api
 ├── iam/        Core — authentication. User aggregate (Email + HashedPassword VOs),
 │               issues its own JWT and publishes the UserRegistered event.
-└── shared/     Cross-cutting configuration (Flyway per module, JWT security).
+├── curriculum/ Supporting — courses and their material. Course (with Subtopic entities),
+│               CurricularMaterial and TeacherWorkspace aggregates; exposes
+│               CurriculumContextFacade.
+└── shared/     Cross-cutting configuration (Flyway per module, JWT security) and the
+                inter-module contracts (shared/contracts).
 ```
 
-Inter-module communication goes through in-process domain events (`UserRegistered`).
-No Open Host Service is exposed, because no synchronous call between modules is
-required at this scope.
+Inter-module communication goes through in-process domain events (`UserRegistered`) and
+the `CurriculumContextFacade` Open Host Service (`curriculum/interfaces/acl`), whose
+contract types live in `shared/contracts/curriculum`.
 
 ## Getting Started
 
@@ -92,6 +131,14 @@ required at this scope.
 ```bash
 cp .env.example .env   # set DB_PASSWORD and JWT_SECRET (openssl rand -base64 64)
 ```
+
+Curricular material settings (all optional):
+
+| Variable                         | Default               | Purpose                                         |
+| -------------------------------- | --------------------- | ----------------------------------------------- |
+| `MATERIALS_STORAGE_DIR`          | `./storage/materials` | Folder of the provisional local storage adapter |
+| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                | Largest file accepted by the upload endpoint    |
+| `INGESTION_RECONCILIATION_DELAY` | `PT5M`                | How often pending material is retried           |
 
 ### Running the application
 
@@ -177,6 +224,11 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ### OWASP coverage (SSDLC)
 
+- **A01 (Broken Access Control / IDOR-BOLA):** courses, their material and the teacher
+  workspace are resolved against the JWT `holderId`; a course of another teacher answers
+  `404`, never its data. Uploaded files are stored under server-generated names, never a
+  path chosen by the client.
+
 - **A02 (Cryptographic Failures):** BCrypt password hashing, signed JWT (never `alg: none`).
 - **A03 (Injection):** Spring Data JPA plus Bean Validation at the edge, no concatenated SQL.
 - **A04 (Insecure Design):** sign-in returns a single generic error, never revealing whether the
@@ -187,14 +239,26 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ## API Endpoints
 
-| Method | Path                              | Auth                           |
-| ------ | --------------------------------- | ------------------------------ |
-| `POST` | `/api/v1/authentication/sign-up`  | No                             |
-| `POST` | `/api/v1/authentication/sign-in`  | No                             |
-| `POST` | `/api/v1/authentication/sign-out` | No                             |
-| `GET`  | `/actuator/health`                | No                             |
+| Method | Path                                                    | Auth                   |
+| ------ | ------------------------------------------------------- | ---------------------- |
+| `POST` | `/api/v1/authentication/sign-up`                        | No                     |
+| `POST` | `/api/v1/authentication/sign-in`                        | No                     |
+| `POST` | `/api/v1/authentication/sign-out`                       | No                     |
+| `POST` | `/api/v1/courses`                                       | Yes                    |
+| `GET`  | `/api/v1/courses`                                       | Yes (own courses only) |
+| `GET`  | `/api/v1/courses/{id}`                                  | Yes (own course only)  |
+| `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | Yes (own course only)  |
+| `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | Yes (own course only)  |
+| `GET`  | `/api/v1/teacher-workspaces/me`                         | Yes                    |
+| `PUT`  | `/api/v1/teacher-workspaces/me/active-course`           | Yes (own course only)  |
+| `GET`  | `/actuator/health`                                      | No                     |
 
 ## Error Handling
+
+Curriculum errors are answered as RFC 9457 `ProblemDetail` bodies: a course without
+subtopics is `422`, a course that does not exist or belongs to another teacher is `404`, an
+unsupported material format is `415`, a subtopic outside the course or an empty file is
+`400`, and a file above the size limit is `413`.
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`, e.g.
 `AuthenticationControllerAdvice`) are caught by
