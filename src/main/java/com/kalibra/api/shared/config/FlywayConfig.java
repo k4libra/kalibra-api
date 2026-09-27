@@ -20,4 +20,15 @@ public class FlywayConfig {
                 .load();
         return new FlywayMigrationInitializer(flyway, null);
     }
+
+    @Bean
+    public FlywayMigrationInitializer curriculumFlywayMigrationInitializer(DataSource dataSource) {
+        var flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("curriculum")
+                .table("flyway_curriculum_courses")
+                .locations("classpath:db/migration/curriculum")
+                .load();
+        return new FlywayMigrationInitializer(flyway, null);
+    }
 }
