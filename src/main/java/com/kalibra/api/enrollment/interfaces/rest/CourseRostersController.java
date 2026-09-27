@@ -5,6 +5,7 @@ import com.kalibra.api.enrollment.domain.services.EnrollmentQueryService;
 import com.kalibra.api.enrollment.interfaces.rest.resources.CourseRosterResource;
 import com.kalibra.api.enrollment.interfaces.rest.transform.EnrollmentAssembler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -26,10 +27,12 @@ public class CourseRostersController {
 
     @GetMapping
     public ResponseEntity<List<CourseRosterResource>> getAll(
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var groups = enrollmentQueryService.handle(
-                new GetEnrollmentRostersByHolderIdQuery(holderId)
+                new GetEnrollmentRostersByHolderIdQuery(
+                        authentication.getName()
+                )
         );
 
         var resources = groups.stream()

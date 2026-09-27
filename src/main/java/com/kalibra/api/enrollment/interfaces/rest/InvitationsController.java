@@ -16,6 +16,7 @@ import com.kalibra.api.enrollment.interfaces.rest.resources.PendingInvitationRes
 import com.kalibra.api.enrollment.interfaces.rest.resources.SendInvitationResource;
 import com.kalibra.api.enrollment.interfaces.rest.transform.InvitationAssembler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -43,11 +44,11 @@ public class InvitationsController {
     @PostMapping
     public ResponseEntity<InvitationResource> send(
             @RequestBody SendInvitationResource resource,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitation = invitationCommandService.handle(
                 new SendInvitationCommand(
-                        holderId,
+                        authentication.getName(),
                         new CourseId(resource.courseId()),
                         new Email(resource.studentEmail())
                 )
@@ -63,10 +64,12 @@ public class InvitationsController {
     @GetMapping
     public ResponseEntity<List<PendingInvitationResource>> getAll(
             @RequestParam String status,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitations = invitationQueryService.handle(
-                new GetPendingInvitationsByHolderIdQuery(holderId)
+                new GetPendingInvitationsByHolderIdQuery(
+                        authentication.getName()
+                )
         );
 
         var resources = invitations.stream()
@@ -85,11 +88,11 @@ public class InvitationsController {
     @PostMapping("/{id}/cancellations")
     public ResponseEntity<InvitationResource> cancel(
             @PathVariable UUID id,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitation = invitationCommandService.handle(
                 new CancelInvitationCommand(
-                        holderId,
+                        authentication.getName(),
                         new InvitationId(id)
                 )
         );
@@ -104,11 +107,11 @@ public class InvitationsController {
     @PostMapping("/{id}/renewals")
     public ResponseEntity<InvitationResource> renew(
             @PathVariable UUID id,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitation = invitationCommandService.handle(
                 new ResendInvitationCommand(
-                        holderId,
+                        authentication.getName(),
                         new InvitationId(id)
                 )
         );
@@ -123,11 +126,11 @@ public class InvitationsController {
     @PostMapping("/{id}/acceptances")
     public ResponseEntity<InvitationResource> accept(
             @PathVariable UUID id,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitation = invitationCommandService.handle(
                 new AcceptInvitationCommand(
-                        holderId,
+                        authentication.getName(),
                         new InvitationId(id)
                 )
         );
@@ -142,11 +145,11 @@ public class InvitationsController {
     @PostMapping("/{id}/rejections")
     public ResponseEntity<InvitationResource> reject(
             @PathVariable UUID id,
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var invitation = invitationCommandService.handle(
                 new RejectInvitationCommand(
-                        holderId,
+                        authentication.getName(),
                         new InvitationId(id)
                 )
         );

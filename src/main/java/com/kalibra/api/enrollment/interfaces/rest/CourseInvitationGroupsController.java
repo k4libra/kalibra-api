@@ -5,6 +5,7 @@ import com.kalibra.api.enrollment.domain.services.InvitationQueryService;
 import com.kalibra.api.enrollment.interfaces.rest.resources.CourseInvitationGroupResource;
 import com.kalibra.api.enrollment.interfaces.rest.resources.InvitationResource;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,10 +24,12 @@ public class CourseInvitationGroupsController {
 
     @GetMapping
     public ResponseEntity<List<CourseInvitationGroupResource>> getAll(
-            @RequestHeader("X-Holder-Id") String holderId
+            Authentication authentication
     ) {
         var groups = invitationQueryService.handle(
-                new GetSentInvitationsByHolderIdQuery(holderId)
+                new GetSentInvitationsByHolderIdQuery(
+                        authentication.getName()
+                )
         );
 
         var resources = groups.stream()
