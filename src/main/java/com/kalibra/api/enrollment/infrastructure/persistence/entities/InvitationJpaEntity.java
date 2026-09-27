@@ -1,6 +1,5 @@
 package com.kalibra.api.enrollment.infrastructure.persistence.entities;
 
-import com.kalibra.api.enrollment.domain.model.valueobjects.InvitationStatus;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -25,9 +24,8 @@ public class InvitationJpaEntity {
     @Column(nullable = false)
     private String invitedEmail;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private InvitationStatus status;
+    private String status;
 
     @Embedded
     private InvitationValidityEmbeddable validity;
@@ -77,11 +75,11 @@ public class InvitationJpaEntity {
         this.invitedEmail = invitedEmail;
     }
 
-    public InvitationStatus getStatus() {
+    public String getStatus() {
         return status;
     }
 
-    public void setStatus(InvitationStatus status) {
+    public void setStatus(String status) {
         this.status = status;
     }
 

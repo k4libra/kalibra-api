@@ -27,8 +27,9 @@ public class EnrollmentRepositoryImpl implements EnrollmentRepository {
 
     @Override
     public Enrollment save(Enrollment enrollment) {
+        // flush: unique indexes must fail here, inside the caller's transaction, not at commit.
         return mapper.toDomain(
-                jpaRepository.save(mapper.toEntity(enrollment))
+                jpaRepository.saveAndFlush(mapper.toEntity(enrollment))
         );
     }
 

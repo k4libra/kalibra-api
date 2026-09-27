@@ -1,7 +1,10 @@
 package com.kalibra.api.enrollment.infrastructure.persistence.repositories;
 
 import com.kalibra.api.enrollment.domain.model.aggregates.Invitation;
-import com.kalibra.api.enrollment.domain.model.valueobjects.*;
+import com.kalibra.api.enrollment.domain.model.valueobjects.CourseId;
+import com.kalibra.api.enrollment.domain.model.valueobjects.InvitationId;
+import com.kalibra.api.enrollment.domain.model.valueobjects.InvitationStatus;
+import com.kalibra.api.enrollment.domain.model.valueobjects.StudentId;
 import com.kalibra.api.enrollment.domain.repositories.InvitationRepository;
 import com.kalibra.api.enrollment.infrastructure.persistence.transform.InvitationJpaMapper;
 import org.springframework.stereotype.Repository;
@@ -26,8 +29,9 @@ public class InvitationRepositoryImpl implements InvitationRepository {
 
     @Override
     public Invitation save(Invitation invitation) {
+        // flush: unique indexes must fail here, inside the caller's transaction, not at commit.
         return mapper.toDomain(
-                jpaRepository.save(mapper.toEntity(invitation))
+                jpaRepository.saveAndFlush(mapper.toEntity(invitation))
         );
     }
 

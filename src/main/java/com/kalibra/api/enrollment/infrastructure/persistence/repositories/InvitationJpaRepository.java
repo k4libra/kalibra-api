@@ -2,6 +2,8 @@ package com.kalibra.api.enrollment.infrastructure.persistence.repositories;
 
 import com.kalibra.api.enrollment.infrastructure.persistence.entities.InvitationJpaEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,9 +21,11 @@ public interface InvitationJpaRepository
 
     List<InvitationJpaEntity> findAllByStudentIdAndStatus(UUID studentId, String status);
 
+    // expiresAt lives in the embedded validity, so the query cannot be derived from the method name.
+    @Query("select i from InvitationJpaEntity i where i.status = :status and i.validity.expiresAt <= :now")
     List<InvitationJpaEntity> findAllByStatusAndExpiresAtBefore(
-            String status,
-            Instant now
+            @Param("status") String status,
+            @Param("now") Instant now
     );
 
     Optional<InvitationJpaEntity> findByStudentIdAndCourseIdAndStatus(
