@@ -15,6 +15,7 @@ import com.kalibra.api.shared.contracts.enrollment.RosterEntry;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class EnrollmentContextFacadeImpl implements EnrollmentContextFacade {
@@ -34,7 +35,7 @@ public class EnrollmentContextFacadeImpl implements EnrollmentContextFacade {
     }
 
     @Override
-    public List<RosterEntry> fetchCourseRoster(java.util.UUID courseId) {
+    public List<RosterEntry> fetchCourseRoster(UUID courseId) {
         return enrollmentQueryService
                 .handle(new GetEnrollmentsByCourseQuery(new CourseId(courseId)))
                 .stream()
