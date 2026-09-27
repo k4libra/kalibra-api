@@ -25,6 +25,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -56,7 +58,7 @@ class CoursesControllerTest {
                 List.of("Equations", "Inequalities")))).thenReturn(course);
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1"))
+        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Algebra\",\"code\":\"MAT101\",\"subtopicNames\":[\"Equations\",\"Inequalities\"]}"))
                 .andExpect(status().isCreated())
@@ -71,7 +73,7 @@ class CoursesControllerTest {
         when(commandService.handle(any(CreateCourseCommand.class))).thenThrow(new CourseWithoutSubtopicsException());
 
         // Act & Assert
-        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1"))
+        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Algebra\",\"code\":\"MAT101\",\"subtopicNames\":[]}"))
                 .andExpect(status().isUnprocessableEntity())
@@ -80,7 +82,7 @@ class CoursesControllerTest {
 
     @Test
     void shouldReturnBadRequestWhenTheCodeIsTooLong() throws Exception {
-        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1"))
+        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"name\":\"Algebra\",\"code\":\"ABCDEFGHIJKLMNOPQRSTU\",\"subtopicNames\":[\"Equations\"]}"))
                 .andExpect(status().isBadRequest());
@@ -90,7 +92,7 @@ class CoursesControllerTest {
     void shouldListOnlyTheCoursesOfTheTeacher() throws Exception {
         when(queryService.handle(new GetCoursesByHolderIdQuery("teacher-1"))).thenReturn(List.of(course));
 
-        mockMvc.perform(get("/api/v1/courses").with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/courses").with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].name").value("Algebra"));
@@ -100,7 +102,7 @@ class CoursesControllerTest {
     void shouldReturnOwnCourseWithItsSubtopics() throws Exception {
         when(queryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
 
-        mockMvc.perform(get("/api/v1/courses/{id}", course.getId().value()).with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/courses/{id}", course.getId().value()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.subtopics.length()").value(2));
     }
@@ -109,7 +111,7 @@ class CoursesControllerTest {
     void shouldReturnNotFoundForTheCourseOfAnotherTeacher() throws Exception {
         when(queryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
 
-        mockMvc.perform(get("/api/v1/courses/{id}", course.getId().value()).with(user("teacher-2")))
+        mockMvc.perform(get("/api/v1/courses/{id}", course.getId().value()).with(user("teacher-2").roles("TEACHER")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
@@ -118,7 +120,7 @@ class CoursesControllerTest {
     void shouldReturnNotFoundForAnUnknownCourse() throws Exception {
         when(queryService.handle(any(GetCourseByIdQuery.class))).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/v1/courses/{id}", UUID.randomUUID()).with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/courses/{id}", UUID.randomUUID()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isNotFound());
     }
 
@@ -126,5 +128,14 @@ class CoursesControllerTest {
     void shouldRejectWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/courses"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldForbidCoursesToStudents() throws Exception {
+        mockMvc.perform(post("/api/v1/courses").with(user("student-1").roles("STUDENT"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Algebra\",\"code\":\"MAT101\",\"subtopicNames\":[\"Equations\"]}"))
+                .andExpect(status().isForbidden());
+        verify(commandService, never()).handle(any(CreateCourseCommand.class));
     }
 }

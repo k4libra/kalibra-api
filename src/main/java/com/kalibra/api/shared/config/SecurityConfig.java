@@ -2,6 +2,7 @@ package com.kalibra.api.shared.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,13 +31,16 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/authentication/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()   // healthchecks send no JWT
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        // TEMPLATE NOTE: roles are additive (iam.domain.model.valueobjects.Role) and
-                        // land as ROLE_<name> authorities via JwtAuthenticationFilter. To restrict a
-                        // route to a specific role, add a matcher BEFORE anyRequest().authenticated():
-                        // .requestMatchers("/api/v1/admin/**").hasAuthority("ROLE_ADMINISTRATOR")
+                        .requestMatchers("/api/v1/courses/**", "/api/v1/teachers/**").hasAuthority("ROLE_TEACHER")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/student-preferences/me/daily-reminder")
+                                .hasAuthority("ROLE_STUDENT")
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                        // sendError(403) would re-dispatch to /error, where the JWT filter does not
+                        // run, and the request would end up answered as 401.
+                        .accessDeniedHandler((request, response, denied) ->
+                                response.setStatus(HttpStatus.FORBIDDEN.value())))
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

@@ -80,7 +80,7 @@ class CurricularMaterialsControllerTest {
                         .param("subtopicIds", subtopicId())
                         .param("fileName", "unit-1.pdf")
                         .param("format", "pdf")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("PENDING_INGESTION"))
                 .andExpect(jsonPath("$.format").value("PDF"))
@@ -100,7 +100,7 @@ class CurricularMaterialsControllerTest {
                         .param("subtopicIds", subtopicId())
                         .param("fileName", "unit-1.docx")
                         .param("format", "DOCX")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.status").value(415));
         verify(commandService, never()).handle(any(UploadCurricularMaterialCommand.class));
@@ -112,7 +112,7 @@ class CurricularMaterialsControllerTest {
                         .file(pdf)
                         .param("fileName", "unit-1.pdf")
                         .param("format", "PDF")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isBadRequest());
     }
 
@@ -125,7 +125,7 @@ class CurricularMaterialsControllerTest {
                         .param("subtopicIds", subtopicId())
                         .param("fileName", "unit-1.pdf")
                         .param("format", "PDF")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isBadRequest());
     }
 
@@ -139,7 +139,7 @@ class CurricularMaterialsControllerTest {
                         .param("subtopicIds", java.util.UUID.randomUUID().toString())
                         .param("fileName", "unit-1.pdf")
                         .param("format", "PDF")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400));
     }
@@ -154,7 +154,7 @@ class CurricularMaterialsControllerTest {
                         .param("subtopicIds", subtopicId())
                         .param("fileName", "unit-1.pdf")
                         .param("format", "PDF")
-                        .with(user("teacher-2")))
+                        .with(user("teacher-2").roles("TEACHER")))
                 .andExpect(status().isNotFound());
     }
 
@@ -168,7 +168,7 @@ class CurricularMaterialsControllerTest {
                 .thenReturn(page);
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()).with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].status").value("INGESTION_ERROR"))
                 .andExpect(jsonPath("$.content[0].failureReason").value("Unreadable scan"))
@@ -180,7 +180,7 @@ class CurricularMaterialsControllerTest {
     void shouldReturnBadRequestForAPageSizeAboveTheLimit() throws Exception {
         mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value())
                         .param("size", "500")
-                        .with(user("teacher-1")))
+                        .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isBadRequest());
         verify(queryService, never()).handle(any(GetCurricularMaterialsByCourseQuery.class));
     }
@@ -189,5 +189,13 @@ class CurricularMaterialsControllerTest {
     void shouldRejectWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldForbidMaterialsToStudents() throws Exception {
+        mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value())
+                        .with(user("student-1").roles("STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(queryService, never()).handle(any(GetCurricularMaterialsByCourseQuery.class));
     }
 }

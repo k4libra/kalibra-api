@@ -50,7 +50,7 @@ class WorkspaceControllerTest {
     void shouldAnswerNullActiveCourseWithoutCreatingAWorkspace() throws Exception {
         when(queryService.handle(new GetTeacherWorkspaceByHolderIdQuery("teacher-1"))).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/v1/teachers/me/workspace").with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/teachers/me/workspace").with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeCourseId").doesNotExist());
         verify(commandService, never()).handle(any(SelectActiveCourseCommand.class));
@@ -66,7 +66,7 @@ class WorkspaceControllerTest {
         when(commandService.handle(command)).thenReturn(workspace);
 
         // Act & Assert
-        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"" + courseId.value() + "\"}"))
                 .andExpect(status().isOk())
@@ -78,7 +78,7 @@ class WorkspaceControllerTest {
         when(commandService.handle(any(SelectActiveCourseCommand.class)))
                 .thenThrow(new CourseNotOwnedByTeacherException(UUID.randomUUID()));
 
-        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isNotFound())
@@ -87,7 +87,7 @@ class WorkspaceControllerTest {
 
     @Test
     void shouldReturnBadRequestWithoutCourseId() throws Exception {
-        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
@@ -97,5 +97,12 @@ class WorkspaceControllerTest {
     void shouldRejectWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/teachers/me/workspace"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldForbidTheWorkspaceToStudents() throws Exception {
+        mockMvc.perform(get("/api/v1/teachers/me/workspace").with(user("student-1").roles("STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(queryService, never()).handle(any(GetTeacherWorkspaceByHolderIdQuery.class));
     }
 }

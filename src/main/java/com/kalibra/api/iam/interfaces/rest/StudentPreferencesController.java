@@ -64,7 +64,8 @@ public class StudentPreferencesController {
             @ApiResponse(responseCode = "200", description = "Preferences after the update"),
             @ApiResponse(responseCode = "400", description = "Reminder enabled without a time, or malformed time",
                     content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a student", content = @Content)
     })
     @PutMapping("/daily-reminder")
     public ResponseEntity<StudentPreferencesResource> updateDailyReminder(

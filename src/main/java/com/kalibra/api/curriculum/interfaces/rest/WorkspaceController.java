@@ -44,7 +44,8 @@ public class WorkspaceController {
             description = "Returns the active course of the authenticated teacher; null when none was selected. Creates nothing.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Workspace of the teacher"),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @GetMapping
     public ResponseEntity<TeacherWorkspaceResource> getMine(Authentication authentication) {
@@ -60,7 +61,8 @@ public class WorkspaceController {
             @ApiResponse(responseCode = "200", description = "Workspace after the change"),
             @ApiResponse(responseCode = "400", description = "Missing courseId", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "The course does not exist or belongs to another teacher", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @PutMapping("/active-course")
     public ResponseEntity<TeacherWorkspaceResource> selectActiveCourse(@Valid @RequestBody SelectActiveCourseResource resource,

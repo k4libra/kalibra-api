@@ -55,7 +55,7 @@ class StudentPreferencesControllerTest {
                 .thenReturn(Optional.of(preferences));
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/student-preferences/me").with(user("holder-123")))
+        mockMvc.perform(get("/api/v1/student-preferences/me").with(user("holder-123").roles("STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dailyReminderEnabled").value(true))
                 .andExpect(jsonPath("$.dailyReminderTime").value("19:30:00"))
@@ -68,7 +68,7 @@ class StudentPreferencesControllerTest {
         when(queryService.handle(any(GetStudentPreferencesByHolderIdQuery.class))).thenReturn(Optional.empty());
 
         // Act & Assert
-        mockMvc.perform(get("/api/v1/student-preferences/me").with(user("holder-123")))
+        mockMvc.perform(get("/api/v1/student-preferences/me").with(user("holder-123").roles("STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dailyReminderEnabled").value(false))
                 .andExpect(jsonPath("$.dailyReminderTime").doesNotExist())
@@ -93,7 +93,7 @@ class StudentPreferencesControllerTest {
 
         // Act & Assert
         mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
-                        .with(user("holder-123"))
+                        .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true,\"time\":\"19:30\"}"))
                 .andExpect(status().isOk())
@@ -104,7 +104,7 @@ class StudentPreferencesControllerTest {
     @Test
     void shouldReturnBadRequestWhenEnablingReminderWithoutTime() throws Exception {
         mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
-                        .with(user("holder-123"))
+                        .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isBadRequest());
@@ -120,7 +120,7 @@ class StudentPreferencesControllerTest {
 
         // Act & Assert
         mockMvc.perform(put("/api/v1/student-preferences/me/dark-mode")
-                        .with(user("holder-123"))
+                        .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isOk())
@@ -133,5 +133,15 @@ class StudentPreferencesControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"enabled\":true}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldForbidTheDailyReminderToTeachers() throws Exception {
+        mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
+                        .with(user("teacher-1").roles("TEACHER"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true,\"time\":\"19:30\"}"))
+                .andExpect(status().isForbidden());
+        verify(commandService, never()).handle(any(UpdateDailyReminderCommand.class));
     }
 }

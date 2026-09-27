@@ -68,7 +68,8 @@ public class CurricularMaterialsController {
             @ApiResponse(responseCode = "404", description = "The course does not exist or belongs to another teacher", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "413", description = "File larger than the allowed size", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "415", description = "Unsupported format", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @io.swagger.v3.oas.annotations.parameters.RequestBody(required = true, content = @Content(
             mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
@@ -104,7 +105,8 @@ public class CurricularMaterialsController {
             @ApiResponse(responseCode = "200", description = "Page of materials"),
             @ApiResponse(responseCode = "400", description = "page below 0 or size outside 1..100", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "The course does not exist or belongs to another teacher", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @GetMapping
     public ResponseEntity<CurricularMaterialPageResource> getAll(@PathVariable("id") UUID courseId,

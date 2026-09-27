@@ -53,7 +53,8 @@ public class CoursesController {
             @ApiResponse(responseCode = "201", description = "Course created"),
             @ApiResponse(responseCode = "400", description = "Invalid name, code or subtopic name", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "422", description = "The course has no subtopics", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @PostMapping
     public ResponseEntity<CourseResource> create(@Valid @RequestBody CreateCourseResource resource,
@@ -65,7 +66,8 @@ public class CoursesController {
     @Operation(summary = "List my courses", description = "Returns only the courses created by the authenticated teacher.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Courses of the teacher"),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @GetMapping
     public ResponseEntity<List<CourseResource>> getAll(Authentication authentication) {
@@ -77,7 +79,8 @@ public class CoursesController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Course with its subtopics"),
             @ApiResponse(responseCode = "404", description = "The course does not exist or belongs to another teacher", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
+            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
+            @ApiResponse(responseCode = "403", description = "The authenticated user is not a teacher", content = @Content)
     })
     @GetMapping("/{id}")
     public ResponseEntity<CourseResource> getById(@PathVariable UUID id, Authentication authentication) {
