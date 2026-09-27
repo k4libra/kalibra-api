@@ -3,6 +3,7 @@ package com.kalibra.api.enrollment.application.internal.queryservices;
 import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalCurriculumService;
 import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalIamService;
 import com.kalibra.api.enrollment.domain.model.aggregates.Invitation;
+import com.kalibra.api.enrollment.domain.model.commands.CancelInvitationCommand;
 import com.kalibra.api.enrollment.domain.model.commands.SendInvitationCommand;
 import com.kalibra.api.enrollment.domain.model.queries.GetPendingInvitationsByHolderIdQuery;
 import com.kalibra.api.enrollment.domain.model.queries.GetSentInvitationsByHolderIdQuery;
@@ -90,7 +91,7 @@ class InvitationQueryServiceImplTest {
         when(externalCurriculumService.fetchCoursesByHolderId(teacherId.toString())).thenReturn(List.of(algebra, physics));
 
         // Act
-        var groups = service.handle(new GetSentInvitationsByHolderIdQuery(teacherId.toString()));
+        var groups = service.handle(new GetSentInvitationsByHolderIdQuery(teacherId.toString(), Optional.empty()));
 
         // Assert
         assertThat(groups).hasSize(2);
@@ -101,6 +102,26 @@ class InvitationQueryServiceImplTest {
             assertThat(line.sentAt()).isEqualTo(invitation.getValidity().sentAt());
             assertThat(line.expiresAt()).isEqualTo(invitation.getValidity().expiresAt());
         });
+        assertThat(groups.get(1).invitations()).isEmpty();
+    }
+
+    @Test
+    void shouldKeepOnlyTheInvitationsInTheRequestedStatusWithoutDroppingCourses() {
+        // Arrange
+        var pending = invitationTo(algebra);
+        var canceled = invitationTo(algebra);
+        canceled.cancel(new CancelInvitationCommand(teacherId.toString(), canceled.getId()));
+        when(invitationRepository.findAllByHolderId(teacherId.toString())).thenReturn(List.of(pending, canceled));
+        when(externalCurriculumService.fetchCoursesByHolderId(teacherId.toString())).thenReturn(List.of(algebra, physics));
+
+        // Act
+        var groups = service.handle(new GetSentInvitationsByHolderIdQuery(
+                teacherId.toString(), Optional.of(InvitationStatus.CANCELED)));
+
+        // Assert
+        assertThat(groups).hasSize(2);
+        assertThat(groups.get(0).invitations()).singleElement()
+                .satisfies(line -> assertThat(line.invitationId()).isEqualTo(canceled.getId().value()));
         assertThat(groups.get(1).invitations()).isEmpty();
     }
 }

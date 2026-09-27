@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -48,7 +49,7 @@ class CourseInvitationGroupsControllerTest {
                 sentAt, sentAt.plusSeconds(3 * 24 * 60 * 60));
         var withInvitations = new CourseInvitationsGroup(UUID.randomUUID(), "Algebra", "MAT101", List.of(line));
         var withoutInvitations = new CourseInvitationsGroup(UUID.randomUUID(), "Physics", "FIS101", List.of());
-        when(queryService.handle(new GetSentInvitationsByHolderIdQuery("teacher-1")))
+        when(queryService.handle(new GetSentInvitationsByHolderIdQuery("teacher-1", Optional.empty())))
                 .thenReturn(List.of(withInvitations, withoutInvitations));
 
         // Act & Assert
@@ -59,6 +60,27 @@ class CourseInvitationGroupsControllerTest {
                 .andExpect(jsonPath("$[0].invitations[0].status").value("PENDING"))
                 .andExpect(jsonPath("$[0].invitations[0].sentAt").value("2026-09-01T10:00:00Z"))
                 .andExpect(jsonPath("$[1].invitations").isEmpty());
+    }
+
+    @Test
+    void shouldFilterTheInvitationsByAnySupportedStatusIgnoringCase() throws Exception {
+        var expired = new CourseInvitationsGroup(UUID.randomUUID(), "Algebra", "MAT101", List.of());
+        when(queryService.handle(new GetSentInvitationsByHolderIdQuery("teacher-1", Optional.of(InvitationStatus.EXPIRED))))
+                .thenReturn(List.of(expired));
+
+        mockMvc.perform(get("/api/v1/course-invitation-groups").param("status", "expired")
+                        .with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].courseCode").value("MAT101"));
+    }
+
+    @Test
+    void shouldReturnBadRequestForAnUnsupportedStatus() throws Exception {
+        mockMvc.perform(get("/api/v1/course-invitation-groups").param("status", "OPEN")
+                        .with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+        verify(queryService, never()).handle(any(GetSentInvitationsByHolderIdQuery.class));
     }
 
     @Test
