@@ -119,6 +119,8 @@ enrollments they turn into. It includes the following features:
   even before the job marks it.
 - Teachers list their sent invitations and their enrolled students, both grouped by course.
   Every course of the teacher is listed, including those without invitations or students.
+  Sent invitations can be filtered by status (`?status=PENDING`, `ACCEPTED`, `REJECTED`,
+  `EXPIRED` or `CANCELED`); the filter applies inside each course, never drops a course.
 - Exposes the `EnrollmentContextFacade` (OHS) so other contexts can check, in-process,
   whether a student is enrolled in a course and fetch its roster.
 
@@ -333,7 +335,7 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `POST` | `/api/v1/invitations/{id}/renewals`                     | `TEACHER` (own invitation)   |
 | `POST` | `/api/v1/invitations/{id}/acceptances`                  | `STUDENT` (own invitation)   |
 | `POST` | `/api/v1/invitations/{id}/rejections`                   | `STUDENT` (own invitation)   |
-| `GET`  | `/api/v1/course-invitation-groups`                      | `TEACHER` (own courses only) |
+| `GET`  | `/api/v1/course-invitation-groups?status`               | `TEACHER` (own courses only) |
 | `GET`  | `/api/v1/course-rosters`                                | `TEACHER` (own courses only) |
 | `GET`  | `/actuator/health`                                      | No                           |
 | `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                           |
@@ -354,7 +356,8 @@ Enrollment errors too: an email without a student account is `422`; a course or 
 invitation of someone else is `404`; answering or canceling an invitation that is no longer
 pending (or past its validity), resending one that is neither canceled nor expired, and
 inviting a student already invited or enrolled are `409`; a `status` filter other than
-`PENDING` is `400`.
+`PENDING` on `/invitations`, or other than an invitation status on
+`/course-invitation-groups`, is `400`.
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —
