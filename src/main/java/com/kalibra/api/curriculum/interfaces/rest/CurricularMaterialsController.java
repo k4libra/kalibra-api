@@ -42,7 +42,7 @@ import java.io.UncheckedIOException;
 import java.util.UUID;
 
 @RestController
-@Tag(name = "Curricular Materials", description = "Material uploaded by the teacher for the subtopics of a course")
+@Tag(name = "Courses", description = "Material uploaded by the teacher for the subtopics of a course")
 @RequestMapping("/api/v1/courses/{id}/curricular-materials")
 public class CurricularMaterialsController {
 
