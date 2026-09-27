@@ -8,6 +8,8 @@ import com.kalibra.api.iam.interfaces.rest.resources.SignUpResource;
 import com.kalibra.api.iam.interfaces.rest.resources.UserResource;
 import com.kalibra.api.iam.interfaces.rest.transform.UserAssembler;
 import com.kalibra.api.shared.config.JwtCookieFactory;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Authentication", description = "User authentication and session management")
 @RequestMapping("/api/v1/authentication")
 public class AuthenticationController {
 
