@@ -1,5 +1,6 @@
 package com.kalibra.api.iam.domain.model.aggregates;
 
+import com.kalibra.api.iam.domain.model.valueobjects.ClientApplication;
 import com.kalibra.api.iam.domain.model.valueobjects.Email;
 import com.kalibra.api.iam.domain.model.valueobjects.HashedPassword;
 import com.kalibra.api.iam.domain.model.valueobjects.Role;
@@ -21,22 +22,33 @@ public class User {
     public User() {
     }
 
-    private User(Email email, HashedPassword hashedPassword) {
+    private User(Email email, HashedPassword hashedPassword, ClientApplication application) {
         this.id = UUID.randomUUID();
         this.email = email;
         this.hashedPassword = hashedPassword;
-        this.roles = EnumSet.of(Role.REGISTERED_USER);
+        this.roles = EnumSet.of(Role.REGISTERED_USER, roleFor(application));
         this.createdAt = Instant.now();
     }
 
-    public static User register(Email email, HashedPassword hashedPassword) {
-        return new User(email, hashedPassword);
+    public static User register(Email email, HashedPassword hashedPassword, ClientApplication application) {
+        return new User(email, hashedPassword, application);
+    }
+
+    private static Role roleFor(ClientApplication application) {
+        return switch (application) {
+            case MOBILE_APP -> Role.STUDENT;
+            case WEB_PLATFORM -> Role.TEACHER;
+        };
     }
 
     // Additive: grants ADMINISTRATOR without ever removing REGISTERED_USER, so an
     // operator keeps using the app normally while also holding elevated access.
     public void grantAdministratorRole() {
         this.roles.add(Role.ADMINISTRATOR);
+    }
+
+    public boolean hasRole(Role role) {
+        return roles.contains(role);
     }
 
     public UUID getId() {

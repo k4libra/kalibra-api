@@ -10,6 +10,7 @@ import com.kalibra.api.iam.domain.model.valueobjects.HashedPassword;
 import com.kalibra.api.iam.domain.repositories.UserRepository;
 import com.kalibra.api.iam.domain.services.UserCommandService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -35,8 +36,13 @@ public class UserCommandServiceImpl implements UserCommandService {
             throw new EmailAlreadyRegisteredException(command.email().value());
         }
         var hashed = new HashedPassword(hashingService.hash(command.rawPassword()));
-        var user = User.register(command.email(), hashed);
-        var saved = userRepository.save(user);
+        var user = User.register(command.email(), hashed, command.application());
+        User saved;
+        try {
+            saved = userRepository.save(user);
+        } catch (DataIntegrityViolationException concurrentSignUp) {
+            throw new EmailAlreadyRegisteredException(command.email().value());
+        }
 
         eventPublisher.publishEvent(new UserRegistered(saved.getId(), saved.getId().toString()));
         return Optional.of(saved);
