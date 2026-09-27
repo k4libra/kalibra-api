@@ -6,50 +6,55 @@ import com.kalibra.api.enrollment.domain.exceptions.InvitationNotPendingExceptio
 import com.kalibra.api.enrollment.domain.exceptions.InvitationNotResendableException;
 import com.kalibra.api.enrollment.domain.exceptions.StudentAccountNotFoundException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
-public class EnrollmentExceptionHandler {
+public class InvitationsControllerAdvice {
 
     @ExceptionHandler(StudentAccountNotFoundException.class)
-    public ResponseEntity<String> handleStudentAccountNotFound(
+    public ProblemDetail handleStudentAccountNotFound(
             StudentAccountNotFoundException exception) {
-        return ResponseEntity
-                .status(HttpStatus.UNPROCESSABLE_ENTITY)
-                .body(exception.getMessage());
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(CourseNotOwnedByTeacherException.class)
-    public ResponseEntity<String> handleCourseNotOwned(
+    public ProblemDetail handleCourseNotOwned(
             CourseNotOwnedByTeacherException exception) {
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(exception.getMessage());
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvitationNotFoundException.class)
-    public ResponseEntity<String> handleInvitationNotFound(
+    public ProblemDetail handleInvitationNotFound(
             InvitationNotFoundException exception) {
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(exception.getMessage());
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvitationNotPendingException.class)
-    public ResponseEntity<String> handleInvitationNotPending(
+    public ProblemDetail handleInvitationNotPending(
             InvitationNotPendingException exception) {
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(exception.getMessage());
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
+        );
     }
 
     @ExceptionHandler(InvitationNotResendableException.class)
-    public ResponseEntity<String> handleInvitationNotResendable(
+    public ProblemDetail handleInvitationNotResendable(
             InvitationNotResendableException exception) {
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(exception.getMessage());
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
+        );
     }
 }
