@@ -188,6 +188,6 @@ class CurricularMaterialsControllerTest {
     @Test
     void shouldRejectWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

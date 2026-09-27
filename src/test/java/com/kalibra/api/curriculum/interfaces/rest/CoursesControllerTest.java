@@ -125,6 +125,6 @@ class CoursesControllerTest {
     @Test
     void shouldRejectWhenNotAuthenticated() throws Exception {
         mockMvc.perform(get("/api/v1/courses"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }
