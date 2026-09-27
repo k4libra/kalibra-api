@@ -238,6 +238,13 @@ environment — there is no permit-all development mode. `/api/v1/authentication
 stays public (sign-up/sign-in/sign-out); every other endpoint requires a valid JWT and
 answers `401` when the cookie is missing or invalid.
 
+On top of that, endpoints are restricted by role (the `roles` claim of the JWT), and a valid
+session with the wrong role answers `403`:
+
+- `TEACHER` only: everything under `/api/v1/courses/**` and `/api/v1/teachers/**`.
+- `STUDENT` only: `PUT /api/v1/student-preferences/me/daily-reminder`.
+- Any authenticated user: reading preferences and switching dark mode.
+
 The JWT never travels in the response body or a header the client sets manually: on
 sign-in, it's set as an **httpOnly, `SameSite=Lax` cookie** (`shared/config/JwtCookieFactory`),
 so client-side JavaScript — and therefore XSS — can never read or exfiltrate it. The
@@ -268,30 +275,30 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 ## API Endpoints
 
-| Method | Path                                                    | Auth                     |
-| ------ | ------------------------------------------------------- | ------------------------ |
-| `POST` | `/api/v1/authentication/sign-up`                        | No                       |
-| `POST` | `/api/v1/authentication/sign-in`                        | No                       |
-| `POST` | `/api/v1/authentication/sign-out`                       | No                       |
-| `GET`  | `/api/v1/student-preferences/me`                        | Yes (own preferences)    |
-| `PUT`  | `/api/v1/student-preferences/me/daily-reminder`         | Yes (own preferences)    |
-| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | Yes (own preferences)    |
-| `POST` | `/api/v1/courses`                                       | Yes                      |
-| `GET`  | `/api/v1/courses`                                       | Yes (own courses only)   |
-| `GET`  | `/api/v1/courses/{id}`                                  | Yes (own course only)    |
-| `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | Yes (own course only)    |
-| `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | Yes (own course only)    |
-| `GET`  | `/api/v1/teachers/me/workspace`                         | Yes                      |
-| `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | Yes (own course only)    |
-| `GET`  | `/actuator/health`                                      | No                       |
-| `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                       |
+| Method | Path                                                    | Auth                         |
+| ------ | ------------------------------------------------------- | ---------------------------- |
+| `POST` | `/api/v1/authentication/sign-up`                        | No                           |
+| `POST` | `/api/v1/authentication/sign-in`                        | No                           |
+| `POST` | `/api/v1/authentication/sign-out`                       | No                           |
+| `GET`  | `/api/v1/student-preferences/me`                        | Yes (own preferences)        |
+| `PUT`  | `/api/v1/student-preferences/me/daily-reminder`         | `STUDENT` (own preferences)  |
+| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | Yes (own preferences)        |
+| `POST` | `/api/v1/courses`                                       | `TEACHER`                    |
+| `GET`  | `/api/v1/courses`                                       | `TEACHER` (own courses only) |
+| `GET`  | `/api/v1/courses/{id}`                                  | `TEACHER` (own course only)  |
+| `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/teachers/me/workspace`                         | `TEACHER`                    |
+| `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | `TEACHER` (own course only)  |
+| `GET`  | `/actuator/health`                                      | No                           |
+| `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                           |
 
 ## Error Handling
 
 Business errors are answered as RFC 9457 `ProblemDetail` bodies:
 `AuthenticationControllerAdvice` maps `EmailAlreadyRegisteredException` to `409` and
-`InvalidCredentialsException` to `401`. Requests without a valid JWT cookie get an empty
-`401` from `SecurityConfig`.
+`InvalidCredentialsException` to `401`. `SecurityConfig` answers an empty `401` to requests
+without a valid JWT cookie and an empty `403` to a valid session with the wrong role.
 
 Curriculum errors follow the same format: a course without subtopics is `422`, a course
 that does not exist or belongs to another teacher is `404`, an unsupported material format
