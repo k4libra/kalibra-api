@@ -34,6 +34,15 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/courses/**", "/api/v1/teachers/**").hasAuthority("ROLE_TEACHER")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/student-preferences/me/daily-reminder")
                                 .hasAuthority("ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/invitations",
+                                "/api/v1/invitations/*/cancellations", "/api/v1/invitations/*/renewals")
+                                .hasAuthority("ROLE_TEACHER")
+                        .requestMatchers("/api/v1/course-invitation-groups/**", "/api/v1/course-rosters/**")
+                                .hasAuthority("ROLE_TEACHER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/invitations").hasAuthority("ROLE_STUDENT")
+                        .requestMatchers(HttpMethod.POST,
+                                "/api/v1/invitations/*/acceptances", "/api/v1/invitations/*/rejections")
+                                .hasAuthority("ROLE_STUDENT")
                         .anyRequest().authenticated())
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))

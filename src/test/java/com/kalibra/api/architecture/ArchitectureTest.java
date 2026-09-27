@@ -61,18 +61,16 @@ class ArchitectureTest {
                 .check(importedClasses);
     }
 
-    // Regla 5 — shared no depende de ningún Bounded Context
+    // Regla 5 — shared no depende de ningún Bounded Context (el * cubre cualquier BC;
+    // shared no tiene capas domain/application/infrastructure propias)
     @Test
     void sharedDoesNotDependOnAnyBoundedContext() {
         noClasses().that().resideInAPackage("com.kalibra.api.shared..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
-                        "com.kalibra.api.iam.domain..",
-                        "com.kalibra.api.iam.application..",
-                        "com.kalibra.api.iam.infrastructure..",
-                        "com.kalibra.api.curriculum.domain..",
-                        "com.kalibra.api.curriculum.application..",
-                        "com.kalibra.api.curriculum.infrastructure..")
+                        "com.kalibra.api.*.domain..",
+                        "com.kalibra.api.*.application..",
+                        "com.kalibra.api.*.infrastructure..")
                 .check(importedClasses);
     }
 
