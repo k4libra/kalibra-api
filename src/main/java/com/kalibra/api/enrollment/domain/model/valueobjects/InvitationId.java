@@ -1,4 +1,6 @@
 package com.kalibra.api.enrollment.domain.model.valueobjects;
 
-public record InvitationId() {
+import java.util.UUID;
+
+public record InvitationId(UUID value) {
 }

@@ -1,4 +1,4 @@
 package com.kalibra.api.enrollment.domain.model.valueobjects;
 
-public record Email() {
+public record Email(String value) {
 }

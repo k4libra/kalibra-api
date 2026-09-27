@@ -1,4 +1,6 @@
 package com.kalibra.api.enrollment.domain.model.valueobjects;
 
-public record CourseId() {
+import java.util.UUID;
+
+public record CourseId(UUID value) {
 }
