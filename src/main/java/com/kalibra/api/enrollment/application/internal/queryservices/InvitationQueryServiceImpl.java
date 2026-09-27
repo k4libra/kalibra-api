@@ -54,10 +54,13 @@ public class InvitationQueryServiceImpl implements InvitationQueryService {
                 .toList();
     }
 
-    // Every course of the teacher is listed, even without invitations (FR-027).
+    // Every course of the teacher is listed, even without invitations (FR-027); the optional
+    // status filters the invitations inside each course, never the courses themselves.
     @Override
     public List<CourseInvitationsGroup> handle(GetSentInvitationsByHolderIdQuery query) {
-        var invitations = invitationRepository.findAllByHolderId(query.holderId());
+        var invitations = invitationRepository.findAllByHolderId(query.holderId()).stream()
+                .filter(invitation -> query.status().map(invitation.getStatus()::equals).orElse(true))
+                .toList();
         return externalCurriculumService.fetchCoursesByHolderId(query.holderId()).stream()
                 .map(course -> new CourseInvitationsGroup(
                         course.courseId(),
