@@ -15,10 +15,10 @@ import com.kalibra.api.enrollment.interfaces.rest.resources.InvitationResource;
 import com.kalibra.api.enrollment.interfaces.rest.resources.PendingInvitationResource;
 import com.kalibra.api.enrollment.interfaces.rest.resources.SendInvitationResource;
 import com.kalibra.api.enrollment.interfaces.rest.transform.InvitationAssembler;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,7 +53,10 @@ public class InvitationsController {
                 )
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .created(URI.create(
+                        "/api/v1/invitations/" + invitation.getId().value()
+                ))
                 .body(invitationAssembler.toResource(invitation));
     }
 
@@ -91,7 +94,10 @@ public class InvitationsController {
                 )
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .created(URI.create(
+                        "/api/v1/invitations/" + invitation.getId().value()
+                ))
                 .body(invitationAssembler.toResource(invitation));
     }
 
@@ -107,7 +113,10 @@ public class InvitationsController {
                 )
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .created(URI.create(
+                        "/api/v1/invitations/" + invitation.getId().value()
+                ))
                 .body(invitationAssembler.toResource(invitation));
     }
 
@@ -123,7 +132,10 @@ public class InvitationsController {
                 )
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .created(URI.create(
+                        "/api/v1/invitations/" + invitation.getId().value()
+                ))
                 .body(invitationAssembler.toResource(invitation));
     }
 
@@ -139,7 +151,10 @@ public class InvitationsController {
                 )
         );
 
-        return ResponseEntity.status(HttpStatus.CREATED)
+        return ResponseEntity
+                .created(URI.create(
+                        "/api/v1/invitations/" + invitation.getId().value()
+                ))
                 .body(invitationAssembler.toResource(invitation));
     }
 }
