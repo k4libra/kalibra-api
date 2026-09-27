@@ -6,8 +6,8 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = TeacherWorkspacesController.class)
-public class TeacherWorkspacesControllerAdvice {
+@RestControllerAdvice(assignableTypes = WorkspaceController.class)
+public class WorkspaceControllerAdvice {
 
     @ExceptionHandler(CourseNotOwnedByTeacherException.class)
     public ProblemDetail handleCourseNotOwnedByTeacher(CourseNotOwnedByTeacherException ex) {

@@ -25,14 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @Tag(name = "Teacher Workspaces", description = "Workspace state of the teacher, such as the active course")
-@RequestMapping("/api/v1/teacher-workspaces/me")
-public class TeacherWorkspacesController {
+@RequestMapping("/api/v1/teachers/me/workspace")
+public class WorkspaceController {
 
     private final TeacherWorkspaceCommandService commandService;
     private final TeacherWorkspaceQueryService queryService;
     private final TeacherWorkspaceAssembler assembler;
 
-    public TeacherWorkspacesController(TeacherWorkspaceCommandService commandService,
+    public WorkspaceController(TeacherWorkspaceCommandService commandService,
                                        TeacherWorkspaceQueryService queryService,
                                        TeacherWorkspaceAssembler assembler) {
         this.commandService = commandService;

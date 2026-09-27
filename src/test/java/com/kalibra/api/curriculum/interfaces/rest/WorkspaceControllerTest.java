@@ -32,10 +32,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(TeacherWorkspacesController.class)
+@WebMvcTest(WorkspaceController.class)
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, TeacherWorkspaceAssemblerImpl.class})
 @TestPropertySource(properties = "kalibra.jwt.secret=test-secret-only-for-wiring-not-a-real-value")
-class TeacherWorkspacesControllerTest {
+class WorkspaceControllerTest {
 
     @Autowired
     MockMvc mockMvc;
@@ -50,7 +50,7 @@ class TeacherWorkspacesControllerTest {
     void shouldAnswerNullActiveCourseWithoutCreatingAWorkspace() throws Exception {
         when(queryService.handle(new GetTeacherWorkspaceByHolderIdQuery("teacher-1"))).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/api/v1/teacher-workspaces/me").with(user("teacher-1")))
+        mockMvc.perform(get("/api/v1/teachers/me/workspace").with(user("teacher-1")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activeCourseId").doesNotExist());
         verify(commandService, never()).handle(any(SelectActiveCourseCommand.class));
@@ -66,7 +66,7 @@ class TeacherWorkspacesControllerTest {
         when(commandService.handle(command)).thenReturn(workspace);
 
         // Act & Assert
-        mockMvc.perform(put("/api/v1/teacher-workspaces/me/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"" + courseId.value() + "\"}"))
                 .andExpect(status().isOk())
@@ -78,7 +78,7 @@ class TeacherWorkspacesControllerTest {
         when(commandService.handle(any(SelectActiveCourseCommand.class)))
                 .thenThrow(new CourseNotOwnedByTeacherException(UUID.randomUUID()));
 
-        mockMvc.perform(put("/api/v1/teacher-workspaces/me/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"" + UUID.randomUUID() + "\"}"))
                 .andExpect(status().isNotFound())
@@ -87,7 +87,7 @@ class TeacherWorkspacesControllerTest {
 
     @Test
     void shouldReturnBadRequestWithoutCourseId() throws Exception {
-        mockMvc.perform(put("/api/v1/teacher-workspaces/me/active-course").with(user("teacher-1"))
+        mockMvc.perform(put("/api/v1/teachers/me/workspace/active-course").with(user("teacher-1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest());
@@ -95,7 +95,7 @@ class TeacherWorkspacesControllerTest {
 
     @Test
     void shouldRejectWhenNotAuthenticated() throws Exception {
-        mockMvc.perform(get("/api/v1/teacher-workspaces/me"))
+        mockMvc.perform(get("/api/v1/teachers/me/workspace"))
                 .andExpect(status().isForbidden());
     }
 }
