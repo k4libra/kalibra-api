@@ -69,7 +69,10 @@ class ArchitectureTest {
                 .resideInAnyPackage(
                         "com.kalibra.api.iam.domain..",
                         "com.kalibra.api.iam.application..",
-                        "com.kalibra.api.iam.infrastructure..")
+                        "com.kalibra.api.iam.infrastructure..",
+                        "com.kalibra.api.curriculum.domain..",
+                        "com.kalibra.api.curriculum.application..",
+                        "com.kalibra.api.curriculum.infrastructure..")
                 .check(importedClasses);
     }
 
