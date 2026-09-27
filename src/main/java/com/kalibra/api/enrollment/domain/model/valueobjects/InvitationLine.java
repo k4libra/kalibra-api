@@ -7,6 +7,7 @@ public record InvitationLine(
         UUID invitationId,
         String invitedEmail,
         InvitationStatus status,
+        Instant sentAt,
         Instant expiresAt
 ) {
 }
