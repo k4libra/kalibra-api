@@ -8,6 +8,9 @@ import com.kalibra.api.progress.domain.model.valueobjects.PracticeExerciseView;
 
 import java.util.Optional;
 
+import org.springframework.stereotype.Service;
+
+@Service("progressExternalCurriculumService")
 public class ExternalCurriculumService {
 
     public Optional<AnswerKey> fetchAnswerKey(ExerciseId exerciseId) {
