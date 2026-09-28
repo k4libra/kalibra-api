@@ -1,12 +1,10 @@
 package com.kalibra.api.progress.domain.model.aggregates;
 
-import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
-import com.kalibra.api.progress.domain.model.valueobjects.MasteryLevel;
-import com.kalibra.api.progress.domain.model.valueobjects.MasteryProbability;
-import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
-import com.kalibra.api.progress.domain.model.valueobjects.SubtopicMasteryId;
+import com.kalibra.api.progress.domain.model.commands.UpdateSubtopicMasteryCommand;
+import com.kalibra.api.progress.domain.model.valueobjects.*;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public class SubtopicMastery {
 
@@ -54,6 +52,31 @@ public class SubtopicMastery {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public static SubtopicMastery firstEstimate(
+            UpdateSubtopicMasteryCommand command) {
+
+        var mastery = new SubtopicMastery();
+
+        mastery.id = new SubtopicMasteryId(UUID.randomUUID());
+        mastery.holderId = command.holderId();
+        mastery.courseId = command.courseId();
+        mastery.subtopicId = command.subtopicId();
+        mastery.initialEstimate = command.estimate().probability();
+        mastery.currentEstimate = command.estimate().probability();
+        mastery.level = command.estimate().level();
+        mastery.estimatesCount = 1;
+        mastery.updatedAt = Instant.now();
+
+        return mastery;
+    }
+
+    public void apply(UpdateSubtopicMasteryCommand command) {
+        this.currentEstimate = command.estimate().probability();
+        this.level = command.estimate().level();
+        this.estimatesCount++;
+        this.updatedAt = Instant.now();
     }
 
     public int evolutionPoints() {
