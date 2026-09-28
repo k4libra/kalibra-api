@@ -2,7 +2,6 @@ package com.kalibra.api.progress.interfaces.rest;
 
 import com.kalibra.api.progress.domain.model.queries.GetPracticeSubtopicsByCourseQuery;
 import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
-import com.kalibra.api.progress.domain.services.ExerciseAttemptQueryService;
 import com.kalibra.api.progress.interfaces.rest.resources.PracticeSubtopicResource;
 import com.kalibra.api.progress.interfaces.rest.transform.PracticeSubtopicAssembler;
 import org.springframework.security.core.Authentication;
