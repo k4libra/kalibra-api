@@ -31,7 +31,14 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/authentication/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()   // healthchecks send no JWT
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                        .requestMatchers("/api/v1/courses/**", "/api/v1/teachers/**").hasAuthority("ROLE_TEACHER")
+                        // before the /courses/** rule: a student reads their own progress under that prefix
+                        .requestMatchers(HttpMethod.GET, "/api/v1/courses/*/student-progress")
+                                .hasAnyAuthority("ROLE_STUDENT", "ROLE_TEACHER")
+                        .requestMatchers("/api/v1/courses/**", "/api/v1/teachers/**", "/api/v1/course-exercise-catalogs/**")
+                                .hasAuthority("ROLE_TEACHER")
+                        .requestMatchers("/api/v1/exercise-attempts/**", "/api/v1/practice-exercises/**",
+                                "/api/v1/subtopic-masteries/**")
+                                .hasAuthority("ROLE_STUDENT")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/student-preferences/me/daily-reminder")
                                 .hasAuthority("ROLE_STUDENT")
                         .requestMatchers(HttpMethod.POST, "/api/v1/invitations",

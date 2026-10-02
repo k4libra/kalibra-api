@@ -7,8 +7,8 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-@RestControllerAdvice(assignableTypes = PracticeExercisesController.class)
-public class PracticeExercisesControllerAdvice {
+@RestControllerAdvice(assignableTypes = ExerciseAttemptsController.class)
+public class ExerciseAttemptsControllerAdvice {
 
     @ExceptionHandler(NotEnrolledInCourseException.class)
     public ProblemDetail handle(NotEnrolledInCourseException exception) {
@@ -22,6 +22,14 @@ public class PracticeExercisesControllerAdvice {
     public ProblemDetail handle(ExerciseNotFoundException exception) {
         return ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
+                exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ProblemDetail handle(IllegalArgumentException exception) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.BAD_REQUEST,
                 exception.getMessage()
         );
     }

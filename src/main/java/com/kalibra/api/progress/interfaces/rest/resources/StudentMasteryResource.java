@@ -4,13 +4,13 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.UUID;
 
-public record SubtopicProgressResource(
+public record StudentMasteryResource(
+        UUID studentId,
+        String email,
         UUID subtopicId,
-        String subtopicName,
-        @Schema(description = "Mastery as a percentage 0..100; null without answers in the subtopic")
+        @Schema(description = "Mastery as a percentage 0..100; null without data")
         Double mastery,
         @Schema(allowableValues = {"LOW", "MEDIUM", "HIGH", "NO_DATA"})
-        String level,
-        int solvedCount
+        String level
 ) {
 }
