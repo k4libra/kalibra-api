@@ -58,9 +58,16 @@ Each module is implemented from a validated PlantUML class diagram, one per BC, 
 
 **Placeholders waiting on decisions** (keep them behind their interfaces)
 - `PushReminderNotificationService` only logs; the push provider is undecided.
-- The Adaptive Engine (FastAPI) is not wired yet. Its three ACLs are Spring beans with their final signatures whose bodies throw `UnsupportedOperationException`: `ExternalCurricularExtractionService` (material stays `PENDING_INGESTION`), `ExternalExerciseGenerationService` and `ExternalMasteryEstimationService` (generating or answering an exercise answers `500`). Wire them without changing their callers; unit tests mock them.
-- `RedisGapMapCacheService` is an in-memory map behind `GapMapCacheService` until Redis is added.
-- `FileSystemMaterialStorageService` is a provisional local adapter behind `MaterialStorageService`. Files never go to PostgreSQL; only an opaque `storageReference` is stored.
+- Push delivery (`PushReminderNotificationService`, `PushInvitationNotificationService`) only logs until a push provider is chosen.
+
+**Adaptive Engine, Redis and storage** (how the external pieces are wired)
+
+- The engine's contract is in the sibling repo (`kalibra-adaptive-engine`, `docs/redis-task-queue.md`). Its three ACLs keep the diagram's intent: `ExternalMasteryEstimationService` calls REST (`engineRestClient`, HTTP/1.1) because the student needs the answer now; `ExternalCurricularExtractionService` and `ExternalExerciseGenerationService` go through `shared/engine/EngineTaskClient`, which publishes on `kalibra:engine:tasks` and waits for the outcome with the same `taskId` on `kalibra:engine:results` (consumer group `kalibra-api`).
+- Engine status meaning: `422` the input is bad (extraction returns empty → `INGESTION_ERROR`); `502`, timeouts and anything else are `EngineTaskFailedException`/`EngineUnavailableException` → material stays pending, REST answers `503` (`GlobalExceptionHandler`). Never turn a provider outage into an ingestion error.
+- `EngineTaskClient` acknowledges results on read and drops the ones nobody waits for; callers must be safe to repeat (the reconciliation job retries extraction). It assumes a single API instance.
+- `shared/engine` and `shared/config` must not depend on any bounded context (ArchUnit). Do not create a `shared/infrastructure` package: the rule treats `*.infrastructure` as a bounded-context layer.
+- `MaterialStorageService` has two adapters selected by `kalibra.storage.provider`: `R2MaterialStorageService` (default; private bucket, `temporaryUrl` presigns a GET for the engine, clients built lazily so the app starts without credentials and uploads answer `503`) and `FileSystemMaterialStorageService` (`filesystem`, development only, the engine cannot read it). Files never go to PostgreSQL; only an opaque `storageReference` is stored.
+- `RedisGapMapCacheService` stores the gap map as JSON in Redis with a TTL and degrades to a miss when Redis is down. The Redis health indicator is disabled on purpose: the API stays up without Redis.
 
 ## Conventions
 

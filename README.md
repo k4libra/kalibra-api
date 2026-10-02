@@ -22,7 +22,9 @@ rather than over the network.
 - Flyway Migrations (per module)
 - In-process Domain Events
 - Scheduled jobs (Spring `@Scheduled`)
-- Multipart file upload behind a pluggable storage service
+- Multipart file upload stored in Cloudflare R2 (private bucket, presigned URLs)
+- Adaptive Engine integration: REST for mastery, Redis streams for extraction and generation
+- Redis cache for the mastery gap map
 - OpenAPI documentation (springdoc, Swagger UI)
 - ArchUnit boundary enforcement
 - Health endpoint (Spring Boot Actuator)
@@ -103,15 +105,18 @@ Ingestion is event-driven: `MaterialUploaded` is handled after commit by
 `MaterialUploadedEventHandler`, and `PendingIngestionReconciliationJob` retries every
 material still pending (every 5 minutes by default), so a failure after the commit is never
 lost. Content extraction and exercise generation are delegated to the Adaptive Engine through
-`ExternalCurricularExtractionService` and `ExternalExerciseGenerationService`; **that engine is
-not connected yet**: both adapters throw, so material stays `PENDING_INGESTION` and generation
-answers `500` until the integration is wired.
+`ExternalCurricularExtractionService` and `ExternalExerciseGenerationService`. Both publish a
+task on the engine's Redis stream (`kalibra:engine:tasks`) and wait for the outcome with the
+same `taskId` on `kalibra:engine:results` (`shared/engine/EngineTaskClient`). A material the
+engine rejects (`422`) becomes `INGESTION_ERROR`; when the engine, an AI provider or its key is
+unavailable the material stays `PENDING_INGESTION` and is retried, and generation answers `503`.
 
 Files never go to PostgreSQL: only their metadata and an opaque `storageReference` are
-stored. The rest of the module only knows `MaterialStorageService`; the storage provider is
-still to be decided, and `FileSystemMaterialStorageService` is a provisional local adapter
-(`MATERIALS_STORAGE_DIR`). Moving to S3, Azure Blob or similar means adding another
-implementation of that interface.
+stored. The rest of the module only knows `MaterialStorageService`. `R2MaterialStorageService`
+keeps the files in a private Cloudflare R2 bucket and hands the engine a short-lived presigned
+URL; until the `R2_*` credentials are set, uploads answer `503`.
+`FileSystemMaterialStorageService` (`STORAGE_PROVIDER=filesystem`) is for local development
+only: the engine cannot read those files, so that material stays pending.
 
 ### Enrollment Context
 
@@ -178,10 +183,11 @@ drops the cached gap map of the course. If that handler fails, the next answer s
 from the last recorded attempt (self-healing). The first estimate of each student and
 subtopic is kept as the baseline of the mastery evolution.
 
-Mastery is estimated by the Adaptive Engine through `ExternalMasteryEstimationService`;
-**it is not connected yet**, so answering an exercise answers `500` until the integration is
-wired. The gap map cache sits behind `GapMapCacheService`; `RedisGapMapCacheService` is an
-in-memory placeholder until Redis is added.
+Mastery is estimated by the Adaptive Engine through `ExternalMasteryEstimationService`, a
+synchronous REST call (`POST /api/v1/mastery-estimates`) so the student sees the change right
+after answering; if the engine is down, answering an exercise answers `503` and nothing is
+recorded. The gap map is cached in Redis by `RedisGapMapCacheService` (10 minutes by default);
+without Redis it is simply computed on every request.
 
 Mastery values travel as percentages (0 to 100). Levels are `LOW` (below 40), `MEDIUM`
 (40 to 70) and `HIGH` (above 70).
@@ -193,6 +199,8 @@ Mastery values travel as percentages (0 to 100). Levels are `LOW` (below 40), `M
 | Language           | Java 25                                  |
 | Framework          | Spring Boot 3.5.15                       |
 | Persistence        | Spring Data JPA · PostgreSQL 17 · Flyway |
+| Queue and cache    | Spring Data Redis · Redis 8              |
+| File storage       | Cloudflare R2 (AWS SDK for Java v2, S3)  |
 | Mapping            | MapStruct 1.6.3                          |
 | Security           | Spring Security · JWT (jjwt 0.12.6)      |
 | API documentation  | springdoc-openapi 2.9.1 (Swagger UI)     |
@@ -231,29 +239,59 @@ Inter-module communication goes through in-process domain events (`UserRegistere
 ### Prerequisites
 
 - JDK 25
-- Docker (PostgreSQL 17)
+- Docker (PostgreSQL 17, Redis 8 and the Adaptive Engine)
+- The [`kalibra-adaptive-engine`](https://github.com/k4libra/kalibra-adaptive-engine) repository cloned next to this one
 - Maven 3.9+
 
 ### Configuration
 
 ```bash
-cp .env.example .env   # set DB_PASSWORD and JWT_SECRET (openssl rand -base64 64)
+cp .env.example .env
 ```
 
-Curricular material settings (all optional):
+Everything has a default except the secrets at the top of `.env`:
 
-| Variable                         | Default               | Purpose                                         |
-| -------------------------------- | --------------------- | ----------------------------------------------- |
-| `MATERIALS_STORAGE_DIR`          | `./storage/materials` | Folder of the provisional local storage adapter |
-| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                | Largest file accepted by the upload endpoint    |
-| `INGESTION_RECONCILIATION_DELAY` | `PT5M`                | How often pending material is retried           |
+| Variable                                                              | Purpose                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `DB_PASSWORD`, `JWT_SECRET`                                           | Own secrets (`openssl rand -base64 64` for the JWT key)      |
+| `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY`                                 | AI providers of the Adaptive Engine (passed to it by compose) |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 bucket for the curricular material          |
+
+Without the provider keys and the R2 credentials the API still starts and every circuit that
+does not need them works (accounts, courses, invitations, answering exercises with real mastery
+estimation, progress, gap map, indicators); uploads, extraction and generation answer `503` or
+stay pending until they are set.
+
+Optional settings:
+
+| Variable                         | Default                    | Purpose                                              |
+| -------------------------------- | -------------------------- | ---------------------------------------------------- |
+| `STORAGE_PROVIDER`               | `r2`                       | `filesystem` keeps files locally (development only)  |
+| `MATERIALS_STORAGE_DIR`          | `./storage/materials`      | Folder of the local storage adapter                  |
+| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                     | Largest file accepted by the upload endpoint         |
+| `R2_URL_VALIDITY`                | `PT15M`                    | Lifetime of the presigned URL handed to the engine   |
+| `ENGINE_BASE_URL`                | `http://localhost:8000`    | Adaptive Engine REST endpoint (mastery estimation)   |
+| `ENGINE_REQUEST_TIMEOUT`         | `PT5S`                     | Timeout of the synchronous mastery call              |
+| `ENGINE_TASK_TIMEOUT`            | `PT4M`                     | How long a queued extraction or generation is awaited |
+| `REDIS_URL`                      | `redis://localhost:6379/0` | Engine task queue and gap map cache                  |
+| `GAP_MAP_CACHE_TTL`              | `PT10M`                    | Lifetime of a cached gap map                         |
+| `INGESTION_RECONCILIATION_DELAY` | `PT5M`                     | How often pending material is retried                |
 
 ### Running the application
 
 ```bash
-docker compose up -d   # starts PostgreSQL 17 only
-mvn spring-boot:run    # or run the application from the IDE
+docker compose up --build   # this API, PostgreSQL 17, Redis 8 and the Adaptive Engine
 ```
+
+To run the API from the IDE or with Maven, start only its dependencies:
+
+```bash
+docker compose up -d postgres redis engine
+mvn spring-boot:run
+```
+
+The engine is built from `../kalibra-adaptive-engine` (override with `ENGINE_CONTEXT`); its
+Swagger UI is at <http://localhost:8000/docs>.
 
 Flyway creates the `iam`, `curriculum`, `enrollment` and `progress` schemas and their tables
 on startup, each module with its own migrations and history table.
@@ -444,6 +482,10 @@ not exist, was discarded or belongs to another course, and a subtopic with no ve
 exercise to deliver, are `404`; an option other than A to D or an unsupported `result` filter
 is `400`; a course of another teacher is `404`; exporting a course without solved exercises
 is `404`.
+
+When the Adaptive Engine, one of its AI providers or the material storage cannot answer
+(down, timed out or not configured yet), the request is valid and may be retried: it is `503`
+with a generic detail, never `500`.
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —
