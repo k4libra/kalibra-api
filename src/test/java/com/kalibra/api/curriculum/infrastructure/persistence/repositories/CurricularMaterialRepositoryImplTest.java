@@ -91,4 +91,17 @@ class CurricularMaterialRepositoryImplTest {
 
         assertThat(repository.findAllByStatus(IngestionStatus.PENDING_INGESTION)).isEmpty();
     }
+
+    @Test
+    void shouldFindTheReadyMaterialsAnchoredToASubtopic() {
+        var subtopicId = new SubtopicId(UUID.randomUUID());
+        var entity = new CurricularMaterialJpaEntity();
+        var material = material();
+        when(jpaRepository.findAllByCourseIdAndSubtopicIdAndStatus(courseId.value(), subtopicId.value(), "READY"))
+                .thenReturn(List.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(material);
+
+        assertThat(repository.findAllByCourseIdAndSubtopicIdAndStatus(courseId, subtopicId, IngestionStatus.READY))
+                .containsExactly(material);
+    }
 }
