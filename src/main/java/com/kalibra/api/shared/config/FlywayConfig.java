@@ -42,4 +42,15 @@ public class FlywayConfig {
                 .load();
         return new FlywayMigrationInitializer(flyway, null);
     }
+
+    @Bean
+    public FlywayMigrationInitializer progressFlywayMigrationInitializer(DataSource dataSource) {
+        var flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("progress")
+                .table("flyway_progress_exercise_attempts")
+                .locations("classpath:db/migration/progress")
+                .load();
+        return new FlywayMigrationInitializer(flyway, null);
+    }
 }

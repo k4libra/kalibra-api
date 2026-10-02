@@ -6,36 +6,38 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "subtopic_masteries", schema = "progress")
+@Table(name = "subtopic_masteries", schema = "progress",
+        uniqueConstraints = @UniqueConstraint(name = "uq_subtopic_masteries_holder_subtopic", columnNames = {"holder_id", "subtopic_id"}))
 public class SubtopicMasteryJpaEntity {
 
     @Id
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "holder_id", nullable = false, length = 64)
     private String holderId;
 
-    @Column(nullable = false)
+    @Column(name = "course_id", nullable = false)
     private UUID courseId;
 
-    @Column(nullable = false)
+    @Column(name = "subtopic_id", nullable = false)
     private UUID subtopicId;
 
-    @Column(nullable = false)
+    @Column(name = "initial_estimate", nullable = false)
     private double initialEstimate;
 
-    @Column(nullable = false)
+    @Column(name = "current_estimate", nullable = false)
     private double currentEstimate;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 10)
     private String level;
 
-    @Column(nullable = false)
+    @Column(name = "estimates_count", nullable = false)
     private int estimatesCount;
 
-    @Column(nullable = false)
+    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    // public: required by MapStruct, which generates its mapper impl in a different package.
     public SubtopicMasteryJpaEntity() {
     }
 

@@ -26,8 +26,9 @@ public class SubtopicMasteryRepositoryImpl
 
     @Override
     public SubtopicMastery save(SubtopicMastery mastery) {
+        // flush: the unique (holder, subtopic) constraint must fail here, inside the caller's transaction.
         return mapper.toDomain(
-                jpaRepository.save(mapper.toEntity(mastery))
+                jpaRepository.saveAndFlush(mapper.toEntity(mastery))
         );
     }
 
