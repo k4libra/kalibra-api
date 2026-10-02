@@ -1,6 +1,7 @@
 package com.kalibra.api.curriculum.application.internal.outboundservices.storage;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -11,7 +12,10 @@ import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+// Local adapter for development and tests (STORAGE_PROVIDER=filesystem). The adaptive engine cannot
+// read these files, so materials stored here stay pending ingestion.
 @Service
+@ConditionalOnProperty(name = "kalibra.storage.provider", havingValue = "filesystem")
 public class FileSystemMaterialStorageService implements MaterialStorageService {
 
     private static final Pattern REFERENCE = Pattern.compile("^[0-9a-f-]{36}(\\.[a-z0-9]{1,5})?$");
@@ -45,6 +49,11 @@ public class FileSystemMaterialStorageService implements MaterialStorageService 
         } catch (IOException failure) {
             throw new UncheckedIOException("Curricular material could not be loaded: " + storageReference, failure);
         }
+    }
+
+    @Override
+    public String temporaryUrl(String storageReference) {
+        throw new UnsupportedOperationException("Local material storage is not reachable by the adaptive engine; use the r2 storage provider");
     }
 
     private String extensionOf(String fileName) {
