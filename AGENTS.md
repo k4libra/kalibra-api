@@ -30,12 +30,13 @@ mvn test -Dtest=ArchitectureTest      # module boundaries (ArchUnit)
 
 ## Architecture
 
-Modular monolith, one Spring Boot deployable. Each bounded context is a root package `com.kalibra.api.<bc>` (today `iam` and `curriculum`) with four DDD layers: `domain` (pure POJOs, no Spring/JPA), `application`, `infrastructure`, `interfaces`. `shared` holds cross-cutting config and inter-module contracts. `ArchitectureTest` enforces the boundaries; when adding a module, add its packages to rule 5 (`shared` must not depend on any BC).
+Modular monolith, one Spring Boot deployable. Each bounded context is a root package `com.kalibra.api.<bc>` (today `iam`, `curriculum`, `enrollment` and `progress`) with four DDD layers: `domain` (pure POJOs, no Spring/JPA), `application`, `infrastructure`, `interfaces`. `shared` holds cross-cutting config and inter-module contracts. `ArchitectureTest` enforces the boundaries; when adding a module, add its packages to rule 5 (`shared` must not depend on any BC).
 
 Each module is implemented from a validated PlantUML class diagram, one per BC, generated from a YAML model outside this repo. Class names, endpoints, repository methods and HTTP errors come from that diagram. Ask before inventing pieces it does not define.
 
 **Inside a module**
 - CQRS-lite: commands and queries are data-only `record`s. `XxxCommandService`/`XxxQueryService` interfaces live in `domain/services` with an overloaded `handle(...)` per command or query. One `XxxCommandServiceImpl`/`XxxQueryServiceImpl` per aggregate lives in `application/internal`.
+- Domain services (`MasteryGapAnalyzer`, `CourseIndicatorsCalculator`, `StudentAnonymizer`) are plain classes in `domain/services`, with no Spring annotation. The `XxxQueryServiceImpl` that uses them instantiates them. They only compute over what the module owns; data of other contexts (names, emails, verification stats) is added by the query service.
 - Double repository: the `domain/repositories/XxxRepository` works with aggregates. `infrastructure/persistence/repositories/XxxRepositoryImpl` implements it with a Spring Data `XxxJpaRepository` plus a MapStruct `XxxJpaMapper`.
 - MapStruct is the only mapper. REST uses `interfaces/rest/transform/*Assembler` and JPA uses `*JpaMapper`. Aggregates and JPA entities keep a `public` no-arg constructor because MapStruct needs it. Single-field VOs and `Optional` fields need explicit `default` converter methods, since MapStruct 1.6 has no `Optional` support.
 - Aggregates are scoped by `holderId`, the JWT `sub`, which equals the `iam` user id (UUID string). Repositories filter by it to prevent IDOR, and a resource owned by someone else answers `404`.
@@ -51,13 +52,14 @@ Each module is implemented from a validated PlantUML class diagram, one per BC, 
 
 **Security** (`shared/config/SecurityConfig`, a single filter chain in every environment)
 - The JWT is issued by `iam` and travels only in an httpOnly, `Secure`, `SameSite=Lax` cookie (`JwtCookieFactory`), never in headers or bodies. `JwtAuthenticationFilter` reads it and maps the `roles` claim to `ROLE_<name>` authorities. Roles are additive: `REGISTERED_USER` plus `STUDENT` (sign-up from `MOBILE_APP`) or `TEACHER` (`WEB_PLATFORM`).
-- Role rules are `requestMatchers(...).hasAuthority("ROLE_...")` placed before `anyRequest().authenticated()`. Today `/api/v1/courses/**` and `/api/v1/teachers/**` require `TEACHER`, and `PUT /api/v1/student-preferences/me/daily-reminder` requires `STUDENT`.
+- Role rules are `requestMatchers(...).hasAuthority("ROLE_...")` placed before `anyRequest().authenticated()`. Today `/api/v1/courses/**`, `/api/v1/teachers/**` and the teacher listings require `TEACHER`; `/api/v1/subtopic-masteries/**`, `/api/v1/practice-exercises/**`, `/api/v1/exercise-attempts/**` and `PUT /api/v1/student-preferences/me/daily-reminder` require `STUDENT`. `GET /api/v1/courses/*/student-progress` is declared before the `/courses/**` rule because students also use it; a more specific matcher must always come first.
 - No session answers an empty `401` (entry point). A wrong role answers an empty `403` from a custom `accessDeniedHandler`. The default handler's `sendError` would re-dispatch to `/error`, where the JWT filter does not run, and the response would turn into `401`. `MockMvc` does not reproduce that, so verify role changes against the running app too.
 - Controller tests use `@WebMvcTest(XController.class)` + `@Import({SecurityConfig.class, JwtAuthenticationFilter.class, <Assembler>Impl.class})` + `@TestPropertySource(properties = "kalibra.jwt.secret=...")` + `user("id").roles("TEACHER")`.
 
 **Placeholders waiting on decisions** (keep them behind their interfaces)
 - `PushReminderNotificationService` only logs; the push provider is undecided.
-- `ExternalCurricularExtractionService` throws, so curricular material stays `PENDING_INGESTION` until the Adaptive Engine (FastAPI) exists.
+- The Adaptive Engine (FastAPI) is not wired yet. Its three ACLs are Spring beans with their final signatures whose bodies throw `UnsupportedOperationException`: `ExternalCurricularExtractionService` (material stays `PENDING_INGESTION`), `ExternalExerciseGenerationService` and `ExternalMasteryEstimationService` (generating or answering an exercise answers `500`). Wire them without changing their callers; unit tests mock them.
+- `RedisGapMapCacheService` is an in-memory map behind `GapMapCacheService` until Redis is added.
 - `FileSystemMaterialStorageService` is a provisional local adapter behind `MaterialStorageService`. Files never go to PostgreSQL; only an opaque `storageReference` is stored.
 
 ## Conventions
