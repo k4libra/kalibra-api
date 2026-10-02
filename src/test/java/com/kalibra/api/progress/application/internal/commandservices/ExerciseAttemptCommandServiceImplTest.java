@@ -99,7 +99,7 @@ class ExerciseAttemptCommandServiceImplTest {
         var event = ArgumentCaptor.forClass(AnswerRecorded.class);
         when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId))
                 .thenReturn(Optional.of(previous));
-        when(externalMasteryEstimationService.estimate(Optional.of(new MasteryProbability(0.41)), AnswerResult.CORRECT))
+        when(externalMasteryEstimationService.estimate(holderId, subtopicId, Optional.of(new MasteryProbability(0.41)), AnswerResult.CORRECT))
                 .thenReturn(new MasteryEstimate(new MasteryProbability(0.63), MasteryLevel.MEDIUM));
 
         // Act
@@ -127,7 +127,7 @@ class ExerciseAttemptCommandServiceImplTest {
         when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId))
                 .thenReturn(Optional.empty());
         when(subtopicMasteryRepository.findByHolderIdAndSubtopicId(holderId, subtopicId)).thenReturn(Optional.empty());
-        when(externalMasteryEstimationService.estimate(Optional.empty(), AnswerResult.CORRECT))
+        when(externalMasteryEstimationService.estimate(holderId, subtopicId, Optional.empty(), AnswerResult.CORRECT))
                 .thenReturn(new MasteryEstimate(new MasteryProbability(0.52), MasteryLevel.MEDIUM,
                         Optional.of(new MasteryProbability(0.30)), true));
 
@@ -148,7 +148,7 @@ class ExerciseAttemptCommandServiceImplTest {
                 .thenReturn(Optional.empty());
         when(subtopicMasteryRepository.findByHolderIdAndSubtopicId(holderId, subtopicId))
                 .thenReturn(Optional.of(ProgressFixtures.mastery(holderId, courseId, subtopicId, 0.30, 0.55, MasteryLevel.MEDIUM)));
-        when(externalMasteryEstimationService.estimate(Optional.of(new MasteryProbability(0.55)), AnswerResult.INCORRECT))
+        when(externalMasteryEstimationService.estimate(holderId, subtopicId, Optional.of(new MasteryProbability(0.55)), AnswerResult.INCORRECT))
                 .thenReturn(new MasteryEstimate(new MasteryProbability(0.47), MasteryLevel.MEDIUM));
 
         var attempt = service.handle(wrongAnswer);

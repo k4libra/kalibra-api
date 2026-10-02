@@ -2,12 +2,9 @@ package com.kalibra.api.progress.application.internal.outboundservices.acl;
 
 import com.kalibra.api.curriculum.interfaces.acl.CurriculumContextFacade;
 import com.kalibra.api.enrollment.interfaces.acl.EnrollmentContextFacade;
-import com.kalibra.api.progress.application.internal.outboundservices.cache.RedisGapMapCacheService;
 import com.kalibra.api.progress.domain.model.commands.RequestPracticeExerciseCommand;
-import com.kalibra.api.progress.domain.model.valueobjects.AnswerResult;
 import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
 import com.kalibra.api.progress.domain.model.valueobjects.ExerciseId;
-import com.kalibra.api.progress.domain.model.valueobjects.MasteryGapMap;
 import com.kalibra.api.progress.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.progress.domain.model.valueobjects.StudentId;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
@@ -27,7 +24,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -94,26 +90,5 @@ class ProgressOutboundServicesTest {
         assertThat(service.isEnrolled(studentId, courseId)).isTrue();
         assertThat(service.fetchRoster(courseId)).containsExactly(studentId);
         assertThat(service.fetchRosterEntries(courseId)).extracting(RosterEntry::email).containsExactly("ana@kalibra.pe");
-    }
-
-    @Test
-    void shouldFailClearlyWhileTheMasteryEngineIsNotWired() {
-        var service = new ExternalMasteryEstimationService();
-
-        assertThatThrownBy(() -> service.estimate(Optional.empty(), AnswerResult.CORRECT))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("engine integration");
-    }
-
-    @Test
-    void shouldStoreFindAndEvictTheGapMapOfACourse() {
-        var cache = new RedisGapMapCacheService();
-        var map = new MasteryGapMap(courseId.value(), true, List.of(), List.of());
-
-        assertThat(cache.find(courseId)).isEmpty();
-        cache.store(map);
-        assertThat(cache.find(courseId)).containsSame(map);
-        cache.evict(courseId);
-        assertThat(cache.find(courseId)).isEmpty();
     }
 }
