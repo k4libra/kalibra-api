@@ -2,9 +2,9 @@ package com.kalibra.api.progress.domain.model.valueobjects;
 
 import java.util.UUID;
 
-public record PracticeSubtopicView(
+public record SubtopicPracticeLine(
         UUID subtopicId,
-        String name,
-        MasteryLevel level
+        String subtopicName,
+        int solved
 ) {
 }

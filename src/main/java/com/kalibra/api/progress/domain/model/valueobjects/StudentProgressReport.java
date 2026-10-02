@@ -9,4 +9,5 @@ public record StudentProgressReport(
         boolean hasActivity,
         List<SubtopicProgressLine> subtopics,
         List<Feedback> recentFeedback
-) {}
+) {
+}

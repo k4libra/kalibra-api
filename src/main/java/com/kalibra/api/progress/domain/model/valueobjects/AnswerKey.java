@@ -6,7 +6,9 @@ public record AnswerKey(
         String explanation,
         SubtopicId subtopicId
 ) {
+
     public boolean isCorrect(String selectedOptionKey) {
-        return correctOptionKey.equals(selectedOptionKey);
+        return selectedOptionKey != null
+                && correctOptionKey.equalsIgnoreCase(selectedOptionKey.trim());
     }
 }

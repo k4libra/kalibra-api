@@ -7,14 +7,22 @@ public record MasteryChange(
         MasteryProbability current
 ) {
 
+    public MasteryChange {
+        if (current == null) {
+            throw new IllegalArgumentException("A mastery change needs the current probability");
+        }
+        if (previous == null) {
+            previous = Optional.empty();
+        }
+    }
+
     public int deltaPoints() {
-        return current.asPercentage()
-                - previous.map(MasteryProbability::asPercentage).orElse(0);
+        return previous
+                .map(value -> current.asPercentage() - value.asPercentage())
+                .orElse(0);
     }
 
     public boolean hasChanged() {
-        return previous
-                .map(value -> value.value() != current.value())
-                .orElse(true);
+        return previous.isEmpty() || deltaPoints() != 0;
     }
 }
