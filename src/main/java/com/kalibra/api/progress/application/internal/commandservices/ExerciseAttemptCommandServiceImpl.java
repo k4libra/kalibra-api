@@ -71,7 +71,8 @@ public class ExerciseAttemptCommandServiceImpl
                 ? AnswerResult.CORRECT
                 : AnswerResult.INCORRECT;
         var prior = currentMastery(command.holderId(), answerKey.subtopicId());
-        var estimate = externalMasteryEstimationService.estimate(prior, result);
+        var estimate = externalMasteryEstimationService.estimate(
+                command.holderId(), answerKey.subtopicId(), prior, result);
         var change = new MasteryChange(
                 prior.or(estimate::prior),
                 estimate.probability()
