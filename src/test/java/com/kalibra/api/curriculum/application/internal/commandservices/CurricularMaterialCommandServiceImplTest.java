@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalCurricularExtractionService;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.commands.CreateCourseCommand;
@@ -25,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -63,7 +65,7 @@ class CurricularMaterialCommandServiceImplTest {
 
     private UploadCurricularMaterialCommand upload(SubtopicId subtopicId) {
         return new UploadCurricularMaterialCommand("teacher-1", course.getId(), List.of(subtopicId),
-                "unit-1.pdf", MaterialFormat.PDF, new byte[]{1, 2, 3});
+                "unit-1.pdf", MaterialFormat.PDF, "%PDF-1.7 unit 1".getBytes(StandardCharsets.US_ASCII));
     }
 
     private CurricularMaterial pendingMaterial() {
@@ -85,6 +87,21 @@ class CurricularMaterialCommandServiceImplTest {
         assertThat(material.getStatus()).isEqualTo(IngestionStatus.PENDING_INGESTION);
         assertThat(material.getFile().storageReference()).isEqualTo("ref.pdf");
         verify(eventPublisher).publishEvent(new MaterialUploaded(material.getId().value()));
+    }
+
+    @Test
+    void shouldRejectACorruptFileWithoutStoringOrRegisteringIt() {
+        // Arrange
+        var subtopicId = course.getSubtopics().getFirst().getId();
+        var corrupt = new UploadCurricularMaterialCommand("teacher-1", course.getId(), List.of(subtopicId),
+                "unit-1.pdf", MaterialFormat.PDF, new byte[]{1, 2, 3});
+        when(courseRepository.findByIdAndHolderId(course.getId(), "teacher-1")).thenReturn(Optional.of(course));
+
+        // Act & Assert
+        assertThatThrownBy(() -> service.handle(corrupt))
+                .isInstanceOf(UnsupportedMaterialFormatException.class)
+                .hasMessageContaining("corrupt");
+        verifyNoInteractions(materialStorageService, curricularMaterialRepository, eventPublisher);
     }
 
     @Test
