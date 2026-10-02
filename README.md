@@ -22,7 +22,9 @@ rather than over the network.
 - Flyway Migrations (per module)
 - In-process Domain Events
 - Scheduled jobs (Spring `@Scheduled`)
-- Multipart file upload behind a pluggable storage service
+- Multipart file upload stored in Cloudflare R2 (private bucket, presigned URLs)
+- Adaptive Engine integration: REST for mastery, Redis streams for extraction and generation
+- Redis cache for the mastery gap map
 - OpenAPI documentation (springdoc, Swagger UI)
 - ArchUnit boundary enforcement
 - Health endpoint (Spring Boot Actuator)
@@ -83,22 +85,38 @@ for them. It includes the following features:
   or `INGESTION_ERROR` (with its `failureReason`).
 - List the material of a course, paginated and newest first, with the ingestion status of
   each file.
+- An upload whose content is not a real PDF, PNG or JPEG (corrupt or mislabeled file) is
+  rejected with `415` before anything is stored or registered.
 - Keep a teacher workspace with the active course, switchable at any time.
-- Exposes the `CurriculumContextFacade` (OHS) so other contexts can check course ownership
-  and read course summaries and subtopics in-process.
+- Generate exercises for a subtopic on the teacher's request (1 to 10), anchored to the
+  `READY` material of that subtopic. A subtopic without ready material answers `409`.
+- Keep **every** exercise the Adaptive Engine returns, approved or discarded, with its
+  verification result and rejection reason (`GeneratedExercise`). A discarded exercise is
+  only visible to the teacher: it is never delivered to a student nor has an answer key
+  (`GeneratedExercise.isAvailableToStudents`).
+- List the generated exercises of a course (paginated, optional `subtopicId` filter) with
+  their content and verdict, and the exercise catalog: per course and subtopic, how many
+  were generated, approved and discarded (courses without exercises are listed at zero).
+- Exposes the `CurriculumContextFacade` (OHS) so other contexts can check course ownership,
+  read course summaries and subtopics, ask for a verified practice exercise for a student,
+  fetch the answer key of an approved exercise and read the verification stats per subtopic.
 
 Ingestion is event-driven: `MaterialUploaded` is handled after commit by
 `MaterialUploadedEventHandler`, and `PendingIngestionReconciliationJob` retries every
 material still pending (every 5 minutes by default), so a failure after the commit is never
-lost. Content extraction is delegated to the Adaptive Engine through
-`ExternalCurricularExtractionService`; **that engine is not connected yet**, so material stays
-`PENDING_INGESTION` until it is.
+lost. Content extraction and exercise generation are delegated to the Adaptive Engine through
+`ExternalCurricularExtractionService` and `ExternalExerciseGenerationService`. Both publish a
+task on the engine's Redis stream (`kalibra:engine:tasks`) and wait for the outcome with the
+same `taskId` on `kalibra:engine:results` (`shared/engine/EngineTaskClient`). A material the
+engine rejects (`422`) becomes `INGESTION_ERROR`; when the engine, an AI provider or its key is
+unavailable the material stays `PENDING_INGESTION` and is retried, and generation answers `503`.
 
 Files never go to PostgreSQL: only their metadata and an opaque `storageReference` are
-stored. The rest of the module only knows `MaterialStorageService`; the storage provider is
-still to be decided, and `FileSystemMaterialStorageService` is a provisional local adapter
-(`MATERIALS_STORAGE_DIR`). Moving to S3, Azure Blob or similar means adding another
-implementation of that interface.
+stored. The rest of the module only knows `MaterialStorageService`. `R2MaterialStorageService`
+keeps the files in a private Cloudflare R2 bucket and hands the engine a short-lived presigned
+URL; until the `R2_*` credentials are set, uploads answer `503`.
+`FileSystemMaterialStorageService` (`STORAGE_PROVIDER=filesystem`) is for local development
+only: the engine cannot read those files, so that material stays pending.
 
 ### Enrollment Context
 
@@ -131,8 +149,48 @@ the enrollment then (self-healing). Invitation notifications go through
 `InvitationNotificationService`; the current implementation
 (`PushInvitationNotificationService`) only logs until the mobile push provider is defined.
 
-Students will see the subtopics of the courses they are enrolled in once the progress
-context exists: it composes `EnrollmentContextFacade` and `CurriculumContextFacade`.
+### Progress Context
+
+The Progress Context (core) owns what students do with the exercises and what the teacher
+learns from it. It composes `EnrollmentContextFacade` and `CurriculumContextFacade`. It
+includes the following features:
+
+- Students list the subtopics of a course they are enrolled in, each with their mastery
+  level (`NO_DATA` until they answer an exercise of it).
+- Students request a practice exercise for a subtopic. It is generated for their current
+  mastery and only an exercise approved by the verification is delivered, with its four
+  options in order A to D and without the answer.
+- Students answer an exercise. The answer is graded against the answer key, the mastery of
+  the subtopic is re-estimated and the response shows the result, the explanation and how
+  many percentage points the mastery went up or down (or that it did not change). The first
+  answer in a subtopic starts from the base mastery.
+- Students read their progress (mastery and solved exercises per subtopic, feedback of the
+  latest answers) and their history of solved exercises, paginated and filterable by result
+  (`ALL`, `CORRECT`, `INCORRECT`) with the count of each.
+- Teachers read the progress of one enrolled student, the mastery gap map of the course
+  (group mastery, students per level and reinforcement priority per subtopic, plus each
+  student's mastery) and the four course indicators: accuracy, practice, mastery evolution
+  and verification approval rate.
+- Teachers export the indicators as CSV (`Accept: text/csv`): one row per student and
+  subtopic, where the student is only an anonymous code, never a name or an email. A course
+  without solved exercises has nothing to export (`404`).
+- A plain-language guide explains what each indicator measures and what a good signal is.
+
+One transaction, one aggregate: submitting an answer saves the `ExerciseAttempt` with its
+`MasteryChange` (so the student sees the change at once) and publishes `AnswerRecorded`;
+`AnswerRecordedEventHandler` applies the estimate to `SubtopicMastery` after the commit and
+drops the cached gap map of the course. If that handler fails, the next answer still starts
+from the last recorded attempt (self-healing). The first estimate of each student and
+subtopic is kept as the baseline of the mastery evolution.
+
+Mastery is estimated by the Adaptive Engine through `ExternalMasteryEstimationService`, a
+synchronous REST call (`POST /api/v1/mastery-estimates`) so the student sees the change right
+after answering; if the engine is down, answering an exercise answers `503` and nothing is
+recorded. The gap map is cached in Redis by `RedisGapMapCacheService` (10 minutes by default);
+without Redis it is simply computed on every request.
+
+Mastery values travel as percentages (0 to 100). Levels are `LOW` (below 40), `MEDIUM`
+(40 to 70) and `HIGH` (above 70).
 
 ## Technology Stack
 
@@ -141,6 +199,8 @@ context exists: it composes `EnrollmentContextFacade` and `CurriculumContextFaca
 | Language           | Java 25                                  |
 | Framework          | Spring Boot 3.5.15                       |
 | Persistence        | Spring Data JPA · PostgreSQL 17 · Flyway |
+| Queue and cache    | Spring Data Redis · Redis 8              |
+| File storage       | Cloudflare R2 (AWS SDK for Java v2, S3)  |
 | Mapping            | MapStruct 1.6.3                          |
 | Security           | Spring Security · JWT (jjwt 0.12.6)      |
 | API documentation  | springdoc-openapi 2.9.1 (Swagger UI)     |
@@ -155,18 +215,22 @@ com.kalibra.api
 ├── iam/        Generic — authentication and personal settings. User aggregate
 │               (Email + HashedPassword VOs), StudentPreferences aggregate, issues its own
 │               JWT, publishes the UserRegistered event and exposes IamContextFacade.
-├── curriculum/ Supporting — courses and their material. Course (with Subtopic entities),
-│               CurricularMaterial and TeacherWorkspace aggregates; exposes
-│               CurriculumContextFacade.
+├── curriculum/ Supporting — courses, their material and the exercises generated from it.
+│               Course (with Subtopic entities), CurricularMaterial, GeneratedExercise and
+│               TeacherWorkspace aggregates; exposes CurriculumContextFacade.
 ├── enrollment/ Supporting — invitations and enrollments. Invitation and Enrollment
 │               aggregates; consumes IamContextFacade and CurriculumContextFacade, exposes
 │               EnrollmentContextFacade.
+├── progress/   Core — answers, mastery and course indicators. ExerciseAttempt and
+│               SubtopicMastery aggregates plus the MasteryGapAnalyzer,
+│               CourseIndicatorsCalculator and StudentAnonymizer domain services; consumes
+│               CurriculumContextFacade and EnrollmentContextFacade.
 └── shared/     Cross-cutting configuration (Flyway per module, JWT security) and the
                 inter-module contracts (shared/contracts).
 ```
 
-Inter-module communication goes through in-process domain events (`UserRegistered`) and
-three Open Host Services — `IamContextFacade` (`iam/interfaces/acl`),
+Inter-module communication goes through in-process domain events (`UserRegistered`,
+`AnswerRecorded`, ...) and three Open Host Services — `IamContextFacade` (`iam/interfaces/acl`),
 `CurriculumContextFacade` (`curriculum/interfaces/acl`) and `EnrollmentContextFacade`
 (`enrollment/interfaces/acl`) — whose contract types live in `shared/contracts/<module>`.
 
@@ -175,31 +239,62 @@ three Open Host Services — `IamContextFacade` (`iam/interfaces/acl`),
 ### Prerequisites
 
 - JDK 25
-- Docker (PostgreSQL 17)
+- Docker (PostgreSQL 17, Redis 8 and the Adaptive Engine)
+- The [`kalibra-adaptive-engine`](https://github.com/k4libra/kalibra-adaptive-engine) repository cloned next to this one
 - Maven 3.9+
 
 ### Configuration
 
 ```bash
-cp .env.example .env   # set DB_PASSWORD and JWT_SECRET (openssl rand -base64 64)
+cp .env.example .env
 ```
 
-Curricular material settings (all optional):
+Everything has a default except the secrets at the top of `.env`:
 
-| Variable                         | Default               | Purpose                                         |
-| -------------------------------- | --------------------- | ----------------------------------------------- |
-| `MATERIALS_STORAGE_DIR`          | `./storage/materials` | Folder of the provisional local storage adapter |
-| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                | Largest file accepted by the upload endpoint    |
-| `INGESTION_RECONCILIATION_DELAY` | `PT5M`                | How often pending material is retried           |
+| Variable                                                              | Purpose                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `DB_PASSWORD`, `JWT_SECRET`                                           | Own secrets (`openssl rand -base64 64` for the JWT key)      |
+| `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY`                                 | AI providers of the Adaptive Engine (passed to it by compose) |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 bucket for the curricular material          |
+
+Without the provider keys and the R2 credentials the API still starts and every circuit that
+does not need them works (accounts, courses, invitations, answering exercises with real mastery
+estimation, progress, gap map, indicators); uploads, extraction and generation answer `503` or
+stay pending until they are set.
+
+Optional settings:
+
+| Variable                         | Default                    | Purpose                                              |
+| -------------------------------- | -------------------------- | ---------------------------------------------------- |
+| `STORAGE_PROVIDER`               | `r2`                       | `filesystem` keeps files locally (development only)  |
+| `MATERIALS_STORAGE_DIR`          | `./storage/materials`      | Folder of the local storage adapter                  |
+| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                     | Largest file accepted by the upload endpoint         |
+| `R2_URL_VALIDITY`                | `PT15M`                    | Lifetime of the presigned URL handed to the engine   |
+| `ENGINE_BASE_URL`                | `http://localhost:8000`    | Adaptive Engine REST endpoint (mastery estimation)   |
+| `ENGINE_REQUEST_TIMEOUT`         | `PT5S`                     | Timeout of the synchronous mastery call              |
+| `ENGINE_TASK_TIMEOUT`            | `PT4M`                     | How long a queued extraction or generation is awaited |
+| `REDIS_URL`                      | `redis://localhost:6379/0` | Engine task queue and gap map cache                  |
+| `GAP_MAP_CACHE_TTL`              | `PT10M`                    | Lifetime of a cached gap map                         |
+| `INGESTION_RECONCILIATION_DELAY` | `PT5M`                     | How often pending material is retried                |
 
 ### Running the application
 
 ```bash
-docker compose up -d   # starts PostgreSQL 17 only
-mvn spring-boot:run    # or run the application from the IDE
+docker compose up --build   # this API, PostgreSQL 17, Redis 8 and the Adaptive Engine
 ```
 
-Flyway creates the `iam` schema and its tables on startup.
+To run the API from the IDE or with Maven, start only its dependencies:
+
+```bash
+docker compose up -d postgres redis engine
+mvn spring-boot:run
+```
+
+The engine is built from `../kalibra-adaptive-engine` (override with `ENGINE_CONTEXT`); its
+Swagger UI is at <http://localhost:8000/docs>.
+
+Flyway creates the `iam`, `curriculum`, `enrollment` and `progress` schemas and their tables
+on startup, each module with its own migrations and history table.
 
 ### API documentation
 
@@ -276,10 +371,15 @@ On top of that, endpoints are restricted by role (the `roles` claim of the JWT),
 session with the wrong role answers `403`:
 
 - `TEACHER` only: everything under `/api/v1/courses/**`, `/api/v1/teachers/**`,
-  `/api/v1/course-invitation-groups/**` and `/api/v1/course-rosters/**`, plus sending,
-  canceling and resending invitations.
+  `/api/v1/course-invitation-groups/**`, `/api/v1/course-rosters/**` and
+  `/api/v1/course-exercise-catalogs/**`, plus sending, canceling and resending invitations.
 - `STUDENT` only: `PUT /api/v1/student-preferences/me/daily-reminder`, listing my pending
-  invitations and accepting or rejecting them.
+  invitations and accepting or rejecting them, and everything under
+  `/api/v1/subtopic-masteries/**`, `/api/v1/practice-exercises/**` and
+  `/api/v1/exercise-attempts/**`.
+- `STUDENT` or `TEACHER`: `GET /api/v1/courses/{id}/student-progress`. Without `studentId` it
+  is the student's own progress and requires being enrolled (`403` otherwise); with
+  `studentId` it requires owning the course (`404` otherwise).
 - Any authenticated user: reading preferences and switching dark mode.
 
 The JWT never travels in the response body or a header the client sets manually: on
@@ -303,7 +403,10 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
   `id` + `holderId`, so a course of another teacher answers `404`, never its data. An
   invitation is resolved by `id` + teacher `holderId` (cancel, resend) or `id` + student
   (accept, reject), so someone else's invitation answers `404`. Uploaded files are stored
-  under server-generated names, never a path chosen by the client.
+  under server-generated names, never a path chosen by the client. Attempts and masteries
+  are always read by the student's `holderId`; a student who is not enrolled in the course
+  answers `403`, an exercise that belongs to another course answers `404`, and every teacher
+  view of progress first checks that the course is theirs (`404`).
 - **A02 (Cryptographic Failures):** BCrypt password hashing, signed JWT (never `alg: none`).
 - **A03 (Injection):** Spring Data JPA plus Bean Validation at the edge, no concatenated SQL.
 - **A04 (Insecure Design):** sign-in returns a single generic error, never revealing whether the
@@ -337,6 +440,18 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `POST` | `/api/v1/invitations/{id}/rejections`                   | `STUDENT` (own invitation)   |
 | `GET`  | `/api/v1/course-invitation-groups?status`               | `TEACHER` (own courses only) |
 | `GET`  | `/api/v1/course-rosters`                                | `TEACHER` (own courses only) |
+| `POST` | `/api/v1/courses/{id}/generated-exercises`              | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/courses/{id}/generated-exercises?subtopicId&page&size` | `TEACHER` (own course only) |
+| `GET`  | `/api/v1/course-exercise-catalogs`                      | `TEACHER` (own courses only) |
+| `GET`  | `/api/v1/subtopic-masteries?courseId`                   | `STUDENT` (enrolled)         |
+| `POST` | `/api/v1/practice-exercises`                            | `STUDENT` (enrolled)         |
+| `POST` | `/api/v1/exercise-attempts`                             | `STUDENT` (enrolled)         |
+| `GET`  | `/api/v1/exercise-attempts?courseId&result&page&size`   | `STUDENT` (own attempts)     |
+| `GET`  | `/api/v1/courses/{id}/student-progress`                 | `STUDENT` (enrolled, own)    |
+| `GET`  | `/api/v1/courses/{id}/student-progress?studentId`       | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/courses/{id}/mastery-gap-map`                  | `TEACHER` (own course only)  |
+| `GET`  | `/api/v1/courses/{id}/indicators` (JSON, or CSV with `Accept: text/csv`) | `TEACHER` (own course only) |
+| `GET`  | `/api/v1/courses/{id}/indicators/guide`                 | `TEACHER`                    |
 | `GET`  | `/actuator/health`                                      | No                           |
 | `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                           |
 
@@ -349,7 +464,7 @@ without a valid JWT cookie and an empty `403` to a valid session with the wrong 
 
 Curriculum errors follow the same format: a course without subtopics is `422`, a course
 that does not exist or belongs to another teacher is `404`, an unsupported material format
-is `415`, a subtopic outside the course or an empty file is `400`, and a file above the size
+(or a corrupt file) is `415`, a subtopic outside the course or an empty file is `400`, and a file above the size
 limit is `413`.
 
 Enrollment errors too: an email without a student account is `422`; a course or an
@@ -358,6 +473,19 @@ pending (or past its validity), resending one that is neither canceled nor expir
 inviting a student already invited or enrolled are `409`; a `status` filter other than
 `PENDING` on `/invitations`, or other than an invitation status on
 `/course-invitation-groups`, is `400`.
+
+Generated exercises: a subtopic without ready material is `409`; a quantity outside 1..10 or
+a subtopic outside the course is `400`.
+
+Progress errors: a student who is not enrolled in the course is `403`; an exercise that does
+not exist, was discarded or belongs to another course, and a subtopic with no verified
+exercise to deliver, are `404`; an option other than A to D or an unsupported `result` filter
+is `400`; a course of another teacher is `404`; exporting a course without solved exercises
+is `404`.
+
+When the Adaptive Engine, one of its AI providers or the material storage cannot answer
+(down, timed out or not configured yet), the request is valid and may be retried: it is `503`
+with a generic detail, never `500`.
 
 Unexpected exceptions (anything not mapped by a module's own `ControllerAdvice`) are caught by
 `shared/interfaces/rest/GlobalExceptionHandler`, which returns a generic `500` body —

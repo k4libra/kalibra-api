@@ -6,6 +6,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularMaterialPa
 import com.kalibra.api.curriculum.domain.model.valueobjects.IngestionStatus;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.Pagination;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,4 +20,6 @@ public interface CurricularMaterialRepository {
     CurricularMaterialPage findAllByCourseId(CourseId courseId, Pagination pagination);
 
     List<CurricularMaterial> findAllByStatus(IngestionStatus status);
+
+    List<CurricularMaterial> findAllByCourseIdAndSubtopicIdAndStatus(CourseId courseId, SubtopicId subtopicId, IngestionStatus status);
 }

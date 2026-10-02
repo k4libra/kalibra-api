@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalCurricularExtractionService;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.commands.IngestCurricularMaterialCommand;
 import com.kalibra.api.curriculum.domain.model.commands.UploadCurricularMaterialCommand;
@@ -55,6 +56,12 @@ public class CurricularMaterialCommandServiceImpl implements CurricularMaterialC
             if (!course.hasSubtopic(subtopicId)) {
                 throw new IllegalArgumentException("Subtopic does not belong to the course: " + subtopicId.value());
             }
+        }
+        if (command.format() == null) {
+            throw new UnsupportedMaterialFormatException(null);
+        }
+        if (!command.format().isSignatureOf(command.content())) {
+            throw UnsupportedMaterialFormatException.unreadable(command.format().name());
         }
         var storageReference = materialStorageService.store(command.fileName(), command.content());
         var material = CurricularMaterial.register(command, storageReference);

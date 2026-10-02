@@ -6,6 +6,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularMaterialPa
 import com.kalibra.api.curriculum.domain.model.valueobjects.IngestionStatus;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.Pagination;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.domain.repositories.CurricularMaterialRepository;
 import com.kalibra.api.curriculum.infrastructure.persistence.transform.CurricularMaterialJpaMapper;
 import org.springframework.data.domain.PageRequest;
@@ -50,5 +51,12 @@ public class CurricularMaterialRepositoryImpl implements CurricularMaterialRepos
     @Override
     public List<CurricularMaterial> findAllByStatus(IngestionStatus status) {
         return jpaRepository.findAllByStatus(status.name()).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public List<CurricularMaterial> findAllByCourseIdAndSubtopicIdAndStatus(CourseId courseId, SubtopicId subtopicId, IngestionStatus status) {
+        return jpaRepository.findAllByCourseIdAndSubtopicIdAndStatus(courseId.value(), subtopicId.value(), status.name()).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 }

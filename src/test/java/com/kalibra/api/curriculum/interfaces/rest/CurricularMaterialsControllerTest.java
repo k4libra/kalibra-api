@@ -1,6 +1,7 @@
 package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.commands.CreateCourseCommand;
@@ -104,6 +105,32 @@ class CurricularMaterialsControllerTest {
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.status").value(415));
         verify(commandService, never()).handle(any(UploadCurricularMaterialCommand.class));
+    }
+
+    @Test
+    void shouldReturnUnsupportedMediaTypeForACorruptFile() throws Exception {
+        when(commandService.handle(any(UploadCurricularMaterialCommand.class)))
+                .thenThrow(UnsupportedMaterialFormatException.unreadable("PDF"));
+
+        mockMvc.perform(multipart("/api/v1/courses/{id}/curricular-materials", course.getId().value())
+                        .file(pdf)
+                        .param("subtopicIds", subtopicId())
+                        .param("fileName", "unit-1.pdf")
+                        .param("format", "PDF")
+                        .with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(jsonPath("$.detail").value("The file is corrupt or is not a valid PDF file"));
+    }
+
+    @Test
+    void shouldAnswerAnEmptyPageForACourseWithoutMaterials() throws Exception {
+        when(queryService.handle(new GetCurricularMaterialsByCourseQuery("teacher-1", course.getId(), Pagination.of(0, 20))))
+                .thenReturn(new CurricularMaterialPage(List.of(), 0, 20, 0, 0));
+
+        mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()).with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty())
+                .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test

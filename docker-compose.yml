@@ -1,4 +1,47 @@
+# Full local stack: this API, PostgreSQL, Redis and the adaptive engine (built from its sibling
+# repository). Everything has a default except the secrets in .env:
+#   docker compose up --build
+# To run the API from the IDE or with mvn, start only its dependencies:
+#   docker compose up -d postgres redis engine
 services:
+  api:
+    build: .
+    image: kalibra-api:local
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      SERVER_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      ENGINE_BASE_URL: http://engine:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      engine:
+        condition: service_started
+    restart: unless-stopped
+
+  engine:
+    build: ${ENGINE_CONTEXT:-../kalibra-adaptive-engine}
+    image: kalibra-adaptive-engine:local
+    ports:
+      - "${ENGINE_PORT:-8000}:8000"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_ENABLED: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
     environment:
@@ -9,6 +52,22 @@ services:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-quedena} -d ${DB_NAME:-kalibra_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
   pgdata:

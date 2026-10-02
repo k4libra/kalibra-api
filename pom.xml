@@ -21,6 +21,7 @@
         <java.version>25</java.version>
         <archunit.version>1.4.1</archunit.version>
         <jjwt.version>0.12.6</jjwt.version>
+        <awssdk.version>2.55.10</awssdk.version>
     </properties>
 
     <dependencies>
@@ -61,6 +62,18 @@
             <groupId>me.paulschwarz</groupId>
             <artifactId>spring-dotenv</artifactId>
             <version>4.0.0</version>
+        </dependency>
+
+        <!-- Adaptive engine task queue and gap-map cache -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Cloudflare R2 (S3-compatible) for the curricular material -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${awssdk.version}</version>
         </dependency>
 
         <!-- JWT propio emitido por el módulo iam (issuer local, no JWKS externo) -->
