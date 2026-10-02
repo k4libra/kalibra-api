@@ -7,6 +7,11 @@ spring:
     username: ${DB_USER:quedena}
     password: ${DB_PASSWORD}
 
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379/0}
+      timeout: 5s
+
   servlet:
     multipart:
       max-file-size: ${MATERIALS_MAX_FILE_SIZE:10MB}
@@ -31,7 +36,23 @@ kalibra:
     secret: ${JWT_SECRET}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
   storage:
-    materials-dir: ${MATERIALS_STORAGE_DIR:./storage/materials}   # provisional local adapter; the storage provider is still to be decided
+    provider: ${STORAGE_PROVIDER:r2}   # r2 (Cloudflare R2, required for ingestion) | filesystem (local development only)
+    materials-dir: ${MATERIALS_STORAGE_DIR:./storage/materials}
+    r2:
+      account-id: ${R2_ACCOUNT_ID:}
+      access-key-id: ${R2_ACCESS_KEY_ID:}
+      secret-access-key: ${R2_SECRET_ACCESS_KEY:}
+      bucket: ${R2_BUCKET:}
+      url-validity: ${R2_URL_VALIDITY:PT15M}   # lifetime of the presigned URL handed to the adaptive engine
+  engine:
+    base-url: ${ENGINE_BASE_URL:http://localhost:8000}
+    request-timeout: ${ENGINE_REQUEST_TIMEOUT:PT5S}   # synchronous mastery estimation
+    task-timeout: ${ENGINE_TASK_TIMEOUT:PT4M}         # queued extraction and generation
+    tasks-stream: ${ENGINE_TASKS_STREAM:kalibra:engine:tasks}
+    results-stream: ${ENGINE_RESULTS_STREAM:kalibra:engine:results}
+    results-group: ${ENGINE_RESULTS_GROUP:kalibra-api}
+  progress:
+    gap-map-cache-ttl: ${GAP_MAP_CACHE_TTL:PT10M}
   curriculum:
     ingestion-reconciliation-delay: ${INGESTION_RECONCILIATION_DELAY:PT5M}
 
@@ -51,3 +72,6 @@ management:
   endpoint:
     health:
       show-details: never   # UP/DOWN only; no infra details to an unauthenticated caller
+  health:
+    redis:
+      enabled: false   # Redis backs the engine queue and a cache; the API itself stays up without it
