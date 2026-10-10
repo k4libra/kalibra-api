@@ -14,6 +14,8 @@ public class User {
 
     private UUID id;
     private Email email;
+    private String firstName;
+    private String lastName;
     private HashedPassword hashedPassword;
     private Set<Role> roles;
     private Instant createdAt;
@@ -22,16 +24,41 @@ public class User {
     public User() {
     }
 
-    private User(Email email, HashedPassword hashedPassword, ClientApplication application) {
+    private User(Email email, String firstName, String lastName, HashedPassword hashedPassword, Role role) {
         this.id = UUID.randomUUID();
         this.email = email;
+        this.firstName = requireName(firstName, "firstName");
+        this.lastName = requireName(lastName, "lastName");
         this.hashedPassword = hashedPassword;
-        this.roles = EnumSet.of(Role.REGISTERED_USER, roleFor(application));
+        this.roles = EnumSet.of(Role.REGISTERED_USER, role);
         this.createdAt = Instant.now();
     }
 
-    public static User register(Email email, HashedPassword hashedPassword, ClientApplication application) {
-        return new User(email, hashedPassword, application);
+    public static User register(Email email, String firstName, String lastName,
+                                HashedPassword hashedPassword, ClientApplication application) {
+        return new User(email, firstName, lastName, hashedPassword, roleFor(application));
+    }
+
+    // Administrators never self-register: they are provisioned by an operator (or the dev seeder)
+    // and hold only REGISTERED_USER + ADMINISTRATOR, so teacher and student endpoints stay closed to them.
+    public static User registerAdministrator(Email email, String firstName, String lastName,
+                                             HashedPassword hashedPassword) {
+        return new User(email, firstName, lastName, hashedPassword, Role.ADMINISTRATOR);
+    }
+
+    private static String requireName(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(field + " must not be blank");
+        }
+        return value.strip();
+    }
+
+    // WEB_PLATFORM serves teachers and administrators; MOBILE_APP serves students only.
+    public boolean canUse(ClientApplication application) {
+        return switch (application) {
+            case MOBILE_APP -> hasRole(Role.STUDENT);
+            case WEB_PLATFORM -> hasRole(Role.TEACHER) || hasRole(Role.ADMINISTRATOR);
+        };
     }
 
     private static Role roleFor(ClientApplication application) {
@@ -59,6 +86,14 @@ public class User {
         return email;
     }
 
+    public String getFirstName() {
+        return firstName;
+    }
+
+    public String getLastName() {
+        return lastName;
+    }
+
     public HashedPassword getHashedPassword() {
         return hashedPassword;
     }
@@ -77,6 +112,14 @@ public class User {
 
     public void setEmail(Email email) {
         this.email = email;
+    }
+
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
+    }
+
+    public void setLastName(String lastName) {
+        this.lastName = lastName;
     }
 
     public void setHashedPassword(HashedPassword hashedPassword) {

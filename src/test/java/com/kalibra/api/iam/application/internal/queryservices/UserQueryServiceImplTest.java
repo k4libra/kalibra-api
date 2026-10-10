@@ -33,7 +33,7 @@ class UserQueryServiceImplTest {
     @Test
     void shouldReturnUserWhenFoundById() {
         // Arrange
-        var user = User.register(EMAIL, new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var user = User.register(EMAIL, "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
 
         // Act & Assert
@@ -53,7 +53,7 @@ class UserQueryServiceImplTest {
     @Test
     void shouldReturnUserWhenFoundByEmail() {
         // Arrange
-        var user = User.register(EMAIL, new HashedPassword("hashed"), ClientApplication.WEB_PLATFORM);
+        var user = User.register(EMAIL, "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.WEB_PLATFORM);
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
 
         // Act & Assert

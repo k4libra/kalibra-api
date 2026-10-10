@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Size;
 import static com.kalibra.api.iam.domain.model.valueobjects.Email.REGEX;
 
 public record SignUpResource(
+        @NotBlank @Size(max = 80) String firstName,
+        @NotBlank @Size(max = 80) String lastName,
         @NotBlank @Email(regexp = REGEX) String email,
         @NotBlank @Size(min = 8, max = 128) String password,
         @Schema(allowableValues = {"MOBILE_APP", "WEB_PLATFORM"},

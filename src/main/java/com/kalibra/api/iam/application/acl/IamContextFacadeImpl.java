@@ -38,7 +38,8 @@ public class IamContextFacadeImpl implements IamContextFacade {
     @Override
     public Optional<UserSummary> fetchUserSummary(UUID userId) {
         return userQueryService.handle(new GetUserByIdQuery(userId))
-                .map(user -> new UserSummary(user.getId(), user.getEmail().value(), roleNames(user)));
+                .map(user -> new UserSummary(user.getId(), user.getEmail().value(),
+                        user.getFirstName(), user.getLastName(), roleNames(user)));
     }
 
     private Set<String> roleNames(User user) {

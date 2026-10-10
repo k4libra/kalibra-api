@@ -49,7 +49,7 @@ class UserCommandServiceImplTest {
     @Test
     void shouldRegisterUserWithRoleOfTheClientApplicationAndPublishEvent() {
         // Arrange
-        var command = new SignUpCommand(EMAIL, "secret-123", ClientApplication.MOBILE_APP);
+        var command = new SignUpCommand(EMAIL, "Ada", "Lovelace", "secret-123", ClientApplication.MOBILE_APP);
         var userCaptor = ArgumentCaptor.forClass(User.class);
         var eventCaptor = ArgumentCaptor.forClass(UserRegistered.class);
         when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
@@ -71,7 +71,7 @@ class UserCommandServiceImplTest {
     @Test
     void shouldThrowWhenEmailIsAlreadyRegistered() {
         // Arrange
-        var command = new SignUpCommand(EMAIL, "secret-123", ClientApplication.WEB_PLATFORM);
+        var command = new SignUpCommand(EMAIL, "Ada", "Lovelace", "secret-123", ClientApplication.WEB_PLATFORM);
         when(userRepository.existsByEmail(EMAIL)).thenReturn(true);
 
         // Act & Assert
@@ -83,7 +83,7 @@ class UserCommandServiceImplTest {
     @Test
     void shouldThrowEmailAlreadyRegisteredWhenAConcurrentSignUpWinsTheRace() {
         // Arrange
-        var command = new SignUpCommand(EMAIL, "secret-123", ClientApplication.MOBILE_APP);
+        var command = new SignUpCommand(EMAIL, "Ada", "Lovelace", "secret-123", ClientApplication.MOBILE_APP);
         when(userRepository.existsByEmail(EMAIL)).thenReturn(false);
         when(hashingService.hash("secret-123")).thenReturn("hashed");
         when(userRepository.save(any())).thenThrow(new DataIntegrityViolationException("users_email_key"));
@@ -96,23 +96,23 @@ class UserCommandServiceImplTest {
     @Test
     void shouldReturnUserWhenCredentialsMatch() {
         // Arrange
-        var user = User.register(EMAIL, new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var user = User.register(EMAIL, "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
         when(hashingService.matches("secret-123", "hashed")).thenReturn(true);
 
         // Act & Assert
-        assertThat(service.handle(new SignInCommand(EMAIL, "secret-123"))).contains(user);
+        assertThat(service.handle(new SignInCommand(EMAIL, "secret-123", null))).contains(user);
     }
 
     @Test
     void shouldReturnEmptyWhenPasswordDoesNotMatch() {
         // Arrange
-        var user = User.register(EMAIL, new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var user = User.register(EMAIL, "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
         when(hashingService.matches("wrong", "hashed")).thenReturn(false);
 
         // Act & Assert
-        assertThat(service.handle(new SignInCommand(EMAIL, "wrong"))).isEmpty();
+        assertThat(service.handle(new SignInCommand(EMAIL, "wrong", null))).isEmpty();
     }
 
     @Test
@@ -121,6 +121,20 @@ class UserCommandServiceImplTest {
         when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThat(service.handle(new SignInCommand(EMAIL, "secret-123"))).isEmpty();
+        assertThat(service.handle(new SignInCommand(EMAIL, "secret-123", null))).isEmpty();
+    }
+
+    @Test
+    void shouldRefuseSignInWhenTheAccountCannotUseTheApplication() {
+        // Arrange
+        var student = User.register(EMAIL, "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(student));
+        when(hashingService.matches("secret-123", "hashed")).thenReturn(true);
+
+        // Act & Assert
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        service.handle(new SignInCommand(EMAIL, "secret-123", ClientApplication.WEB_PLATFORM)))
+                .isInstanceOf(com.kalibra.api.iam.domain.exceptions.ApplicationAccessDeniedException.class);
+        assertThat(service.handle(new SignInCommand(EMAIL, "secret-123", ClientApplication.MOBILE_APP))).contains(student);
     }
 }

@@ -49,7 +49,7 @@ class AuthenticationControllerTest {
     TokenService tokenService;
 
     private User studentUser() {
-        return User.register(new Email("ada@kalibra.com"), new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        return User.register(new Email("ada@kalibra.com"), "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
     }
 
     @Test
@@ -61,7 +61,7 @@ class AuthenticationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/api/v1/authentication/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"MOBILE_APP\"}"))
+                        .content("{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"MOBILE_APP\"}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("ada@kalibra.com"))
                 .andExpect(jsonPath("$.roles", containsInAnyOrder("REGISTERED_USER", "STUDENT")));
@@ -76,7 +76,7 @@ class AuthenticationControllerTest {
         // Act & Assert
         mockMvc.perform(post("/api/v1/authentication/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"WEB_PLATFORM\"}"))
+                        .content("{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"WEB_PLATFORM\"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409));
     }
@@ -85,7 +85,7 @@ class AuthenticationControllerTest {
     void shouldReturnBadRequestWhenApplicationIsUnknown() throws Exception {
         mockMvc.perform(post("/api/v1/authentication/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"DESKTOP\"}"))
+                        .content("{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"email\":\"ada@kalibra.com\",\"password\":\"secret-123\",\"application\":\"DESKTOP\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -93,7 +93,7 @@ class AuthenticationControllerTest {
     void shouldReturnBadRequestWhenPasswordIsTooShort() throws Exception {
         mockMvc.perform(post("/api/v1/authentication/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"ada@kalibra.com\",\"password\":\"short\",\"application\":\"MOBILE_APP\"}"))
+                        .content("{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"email\":\"ada@kalibra.com\",\"password\":\"short\",\"application\":\"MOBILE_APP\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -141,7 +141,7 @@ class AuthenticationControllerTest {
     void shouldReturnBadRequestWhenSignUpEmailHasNoTopLevelDomain() throws Exception {
         mockMvc.perform(post("/api/v1/authentication/sign-up")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"user@localhost\",\"password\":\"secret-123\",\"application\":\"MOBILE_APP\"}"))
+                        .content("{\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"email\":\"user@localhost\",\"password\":\"secret-123\",\"application\":\"MOBILE_APP\"}"))
                 .andExpect(status().isBadRequest());
     }
 

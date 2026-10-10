@@ -1,6 +1,7 @@
 package com.kalibra.api.iam.application.internal.commandservices;
 
 import com.kalibra.api.iam.application.internal.outboundservices.hashing.HashingService;
+import com.kalibra.api.iam.domain.exceptions.ApplicationAccessDeniedException;
 import com.kalibra.api.iam.domain.exceptions.EmailAlreadyRegisteredException;
 import com.kalibra.api.iam.domain.model.aggregates.User;
 import com.kalibra.api.iam.domain.model.commands.SignInCommand;
@@ -36,7 +37,7 @@ public class UserCommandServiceImpl implements UserCommandService {
             throw new EmailAlreadyRegisteredException(command.email().value());
         }
         var hashed = new HashedPassword(hashingService.hash(command.rawPassword()));
-        var user = User.register(command.email(), hashed, command.application());
+        var user = User.register(command.email(), command.firstName(), command.lastName(), hashed, command.application());
         User saved;
         try {
             saved = userRepository.save(user);
@@ -50,7 +51,12 @@ public class UserCommandServiceImpl implements UserCommandService {
 
     @Override
     public Optional<User> handle(SignInCommand command) {
-        return userRepository.findByEmail(command.email())
-                .filter(user -> hashingService.matches(command.rawPassword(), user.getHashedPassword().value()));
+        var user = userRepository.findByEmail(command.email())
+                .filter(candidate -> hashingService.matches(command.rawPassword(), candidate.getHashedPassword().value()));
+        // Checked only after the password matched, so the 403 never reveals which emails exist.
+        if (user.isPresent() && command.application() != null && !user.get().canUse(command.application())) {
+            throw new ApplicationAccessDeniedException(command.application().name());
+        }
+        return user;
     }
 }

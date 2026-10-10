@@ -1,5 +1,6 @@
 package com.kalibra.api.iam.interfaces.rest;
 
+import com.kalibra.api.iam.domain.exceptions.ApplicationAccessDeniedException;
 import com.kalibra.api.iam.domain.exceptions.EmailAlreadyRegisteredException;
 import com.kalibra.api.iam.domain.exceptions.InvalidCredentialsException;
 import org.slf4j.Logger;
@@ -17,6 +18,11 @@ public class AuthenticationControllerAdvice {
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     public ProblemDetail handleEmailAlreadyRegistered(EmailAlreadyRegisteredException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(ApplicationAccessDeniedException.class)
+    public ProblemDetail handleApplicationAccessDenied(ApplicationAccessDeniedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
