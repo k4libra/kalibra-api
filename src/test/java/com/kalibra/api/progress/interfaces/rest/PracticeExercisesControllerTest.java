@@ -10,6 +10,8 @@ import com.kalibra.api.progress.interfaces.rest.transform.ExerciseAttemptAssembl
 import com.kalibra.api.shared.config.JwtAuthenticationFilter;
 import com.kalibra.api.shared.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -53,11 +55,12 @@ class PracticeExercisesControllerTest {
         return "{\"courseId\":\"" + courseId.value() + "\",\"subtopicId\":\"" + subtopicId.value() + "\"}";
     }
 
-    @Test
-    void shouldDeliverAVerifiedExerciseWithoutRevealingTheAnswer() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"EASY", "MEDIUM", "HARD"})
+    void shouldDeliverAVerifiedExerciseWithoutRevealingTheAnswer(String difficulty) throws Exception {
         var exerciseId = UUID.randomUUID();
         when(commandService.handle(command)).thenReturn(Optional.of(new PracticeExerciseView(exerciseId, subtopicId.value(),
-                "Solve 2x + 3 = 7", List.of("x = 1", "x = 2", "x = 3", "x = 5"))));
+                "Solve 2x + 3 = 7", List.of("x = 1", "x = 2", "x = 3", "x = 5"), difficulty)));
 
         var response = mockMvc.perform(post("/api/v1/practice-exercises").contentType(MediaType.APPLICATION_JSON).content(body())
                         .with(user("student-1").roles("STUDENT")))
@@ -65,6 +68,7 @@ class PracticeExercisesControllerTest {
                 .andExpect(jsonPath("$.exerciseId").value(exerciseId.toString()))
                 .andExpect(jsonPath("$.subtopicId").value(subtopicId.value().toString()))
                 .andExpect(jsonPath("$.statement").value("Solve 2x + 3 = 7"))
+                .andExpect(jsonPath("$.difficulty").value(difficulty))
                 .andExpect(jsonPath("$.options.length()").value(4))
                 .andExpect(jsonPath("$.options[1]").value("x = 2"))
                 .andReturn().getResponse().getContentAsString();

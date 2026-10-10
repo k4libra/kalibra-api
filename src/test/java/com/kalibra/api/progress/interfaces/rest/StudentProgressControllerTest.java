@@ -23,10 +23,12 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -51,14 +53,14 @@ class StudentProgressControllerTest {
     private final StudentId studentId = new StudentId(UUID.randomUUID());
 
     private StudentProgressReport withActivity() {
-        return new StudentProgressReport(studentId.value(), courseId.value(), true, List.of(
+        return new StudentProgressReport(studentId.value(), courseId.value(), true, Instant.parse("2026-10-10T14:30:00Z"), List.of(
                 new SubtopicProgressLine(UUID.randomUUID(), "Equations", Optional.of(new MasteryProbability(0.55)), MasteryLevel.MEDIUM, 4),
                 new SubtopicProgressLine(UUID.randomUUID(), "Inequalities", Optional.empty(), MasteryLevel.NO_DATA, 0)),
                 List.of(new Feedback("Subtract 3, divide by 2")));
     }
 
     private StudentProgressReport withoutActivity() {
-        return new StudentProgressReport(studentId.value(), courseId.value(), false, List.of(
+        return new StudentProgressReport(studentId.value(), courseId.value(), false, null, List.of(
                 new SubtopicProgressLine(UUID.randomUUID(), "Equations", Optional.empty(), MasteryLevel.NO_DATA, 0)), List.of());
     }
 
@@ -69,6 +71,7 @@ class StudentProgressControllerTest {
         mockMvc.perform(get("/api/v1/courses/{id}/student-progress", courseId.value()).with(user("student-1").roles("STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasActivity").value(true))
+                .andExpect(jsonPath("$.lastActivityAt").value("2026-10-10T14:30:00Z"))
                 .andExpect(jsonPath("$.subtopics[0].subtopicName").value("Equations"))
                 .andExpect(jsonPath("$.subtopics[0].mastery").value(55.0))
                 .andExpect(jsonPath("$.subtopics[0].level").value("MEDIUM"))
@@ -85,6 +88,7 @@ class StudentProgressControllerTest {
         mockMvc.perform(get("/api/v1/courses/{id}/student-progress", courseId.value()).with(user("student-1").roles("STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.hasActivity").value(false))
+                .andExpect(jsonPath("$.lastActivityAt").value(nullValue()))
                 .andExpect(jsonPath("$.subtopics[0].mastery").doesNotExist())
                 .andExpect(jsonPath("$.recentFeedback").isEmpty());
     }
@@ -106,6 +110,7 @@ class StudentProgressControllerTest {
                         .param("studentId", studentId.value().toString()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.studentId").value(studentId.value().toString()))
+                .andExpect(jsonPath("$.lastActivityAt").value("2026-10-10T14:30:00Z"))
                 .andExpect(jsonPath("$.subtopics[0].mastery").value(55.0));
         verify(queryService, never()).handle(any(GetStudentProgressByCourseQuery.class));
     }
@@ -117,7 +122,8 @@ class StudentProgressControllerTest {
         mockMvc.perform(get("/api/v1/courses/{id}/student-progress", courseId.value())
                         .param("studentId", studentId.value().toString()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.hasActivity").value(false));
+                .andExpect(jsonPath("$.hasActivity").value(false))
+                .andExpect(jsonPath("$.lastActivityAt").value(nullValue()));
     }
 
     @Test

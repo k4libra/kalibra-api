@@ -46,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -144,6 +145,33 @@ class SubtopicMasteryQueryServiceImplTest {
     }
 
     @Test
+    void shouldUseTheLatestCourseAttemptAcrossSubtopicsForBothProgressVariants() {
+        var early = ProgressFixtures.attempt(anaHolder, courseId, equations, "B", 0.30, 0.55);
+        early.setAnsweredAt(Instant.parse("2026-10-09T14:30:00Z"));
+        var latest = ProgressFixtures.attempt(anaHolder, courseId, inequalities, "A", 0.30, 0.21);
+        latest.setAnsweredAt(Instant.parse("2026-10-10T14:30:00Z"));
+        when(exerciseAttemptRepository.findAllByHolderIdAndCourseId(anaHolder, courseId))
+                .thenReturn(List.of(latest, early));
+
+        assertThat(service.handle(new GetStudentProgressByCourseQuery(anaHolder, courseId)).lastActivityAt())
+                .isEqualTo(latest.getAnsweredAt());
+        assertThat(service.handle(new GetStudentProgressForTeacherQuery(TEACHER, courseId, ana)).lastActivityAt())
+                .isEqualTo(latest.getAnsweredAt());
+        verify(exerciseAttemptRepository, times(2)).findAllByHolderIdAndCourseId(anaHolder, courseId);
+    }
+
+    @Test
+    void shouldReportNoLastActivityWhenOnlyMasteryExists() {
+        when(subtopicMasteryRepository.findAllByHolderIdAndCourseId(anaHolder, courseId)).thenReturn(List.of(
+                ProgressFixtures.mastery(anaHolder, courseId, equations, 0.30, 0.55, MasteryLevel.MEDIUM)));
+
+        var report = service.handle(new GetStudentProgressByCourseQuery(anaHolder, courseId));
+
+        assertThat(report.hasActivity()).isTrue();
+        assertThat(report.lastActivityAt()).isNull();
+    }
+
+    @Test
     void shouldReportAnInitialStateForAStudentWithoutSolvedExercises() {
         when(subtopicMasteryRepository.findAllByHolderIdAndCourseId(anaHolder, courseId)).thenReturn(List.of());
         when(exerciseAttemptRepository.findAllByHolderIdAndCourseId(anaHolder, courseId)).thenReturn(List.of());
@@ -151,6 +179,7 @@ class SubtopicMasteryQueryServiceImplTest {
         var report = service.handle(new GetStudentProgressByCourseQuery(anaHolder, courseId));
 
         assertThat(report.hasActivity()).isFalse();
+        assertThat(report.lastActivityAt()).isNull();
         assertThat(report.recentFeedback()).isEmpty();
         assertThat(report.subtopics()).hasSize(2)
                 .allSatisfy(line -> {
@@ -168,6 +197,7 @@ class SubtopicMasteryQueryServiceImplTest {
 
         assertThat(report.studentId()).isEqualTo(ana.value());
         assertThat(report.hasActivity()).isFalse();
+        assertThat(report.lastActivityAt()).isNull();
         assertThat(report.subtopics()).hasSize(2);
     }
 

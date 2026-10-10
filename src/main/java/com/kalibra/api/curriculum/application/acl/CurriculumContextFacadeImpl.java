@@ -138,6 +138,6 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
                 exercise.getOptions().stream()
                         .sorted(Comparator.comparing(ExerciseOption::getKey))
                         .map(ExerciseOption::getText)
-                        .toList());
+                        .toList(), exercise.getDifficulty().name());
     }
 }

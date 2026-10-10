@@ -61,13 +61,14 @@ class ProgressOutboundServicesTest {
         when(curriculumContextFacade.provideExerciseForStudent(
                 new PracticeExerciseRequest(courseId.value(), subtopicId.value(), Optional.of(0.52))))
                 .thenReturn(Optional.of(new ExerciseSnapshot(exerciseId.value(), subtopicId.value(), "Solve 2x + 3 = 7",
-                        List.of("x = 1", "x = 2", "x = 3", "x = 5"))));
+                        List.of("x = 1", "x = 2", "x = 3", "x = 5"), "MEDIUM")));
 
         var view = service.provideExercise(command, Optional.of(new MasteryProbability(0.52)));
 
         assertThat(view).isPresent();
         assertThat(view.get().exerciseId()).isEqualTo(exerciseId.value());
         assertThat(view.get().options()).hasSize(4);
+        assertThat(view.get().difficulty()).isEqualTo("MEDIUM");
     }
 
     @Test
