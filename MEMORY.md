@@ -1,16 +1,15 @@
 # MEMORY.md - Kalibra API
 
-Inter-session project memory. This file contains ~50 lines: summarize or remove content that no longer adds value.
-
 ## Current status (2026-10-10)
-- The four bounded contexts (`iam`, `curriculum`, `enrollment`, `progress`) boot, migrate and validate against
-  PostgreSQL 17. All 34 user stories have their backend.
+- The four bounded contexts (`iam`, `curriculum`, `enrollment`, `progress`) run on PostgreSQL 17; all 34 user stories have their backend.
 - The Adaptive Engine is wired: mastery over REST, extraction and generation over Redis streams
   (`shared/engine/EngineTaskClient`), material in Cloudflare R2, gap map cache in Redis. `docker compose up --build`
   starts API + engine + Redis + PostgreSQL.
-- Verified end to end without credentials: every circuit over HTTP, real BKT mastery through the engine, and the
-  queue round trip (task published, consumed, `502` back, material kept pending). Real extraction and generation
-  were NOT exercised: they need `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY` and the `R2_*` credentials.
+- Earlier validation covered HTTP, real BKT and the queue outage round trip without provider credentials.
+- This fidelity task follows a user-reported real DeepSeek/BKT E2E run; external providers were not rerun here.
+- Student progress exposes max course-attempt `answeredAt` as `lastActivityAt` (null without answers). Practice
+  exposes stored EASY/MEDIUM/HARD difficulty across the neutral curriculum contract, without correct answers.
+- `mvn clean verify`: 426 tests pass, including ArchUnit, progress dates, practice JSON and ACL difficulty.
 - KAL-39: users have first/last names (iam V4), `GET /users/me`, `GET /students/me/courses`, ADMINISTRATOR
   analytics (`/institutional-indicators`), sign-in restricted per client application, generic users seeder.
 
@@ -34,10 +33,8 @@ Inter-session project memory. This file contains ~50 lines: summarize or remove 
 - Uploads are checked against the signature of their declared format before being stored (corrupt file is `415`).
 
 ## Lessons learned and mistakes to avoid
-- The VS Code Java extension rewrites `target/classes` while Maven runs: always build with `mvn clean ...`.
-  A stale class shows up as `ClassNotFoundException` for a class name without package in a `@WebMvcTest`.
-- Port 5432 may be taken by another project's Postgres. Run the compose under another project name and ports
-  (`-p kalibra-verify` with `DB_PORT`, `REDIS_PORT`, `ENGINE_PORT`, `SERVER_PORT`), then `down -v`.
+- The VS Code Java extension rewrites `target/classes` during Maven: use `mvn clean ...`; retry missing MapStruct beans.
+- Avoid occupied ports: use compose `-p kalibra-verify` with alternate DB/Redis/engine/server ports, then `down -v`.
 - The JDK HTTP client tries an h2c upgrade that uvicorn rejects: the engine `RestClient` is pinned to HTTP/1.1.
 - A blocking stream read must be shorter than the Redis command timeout, on both sides (API poll 1 s vs 5 s).
 - The JWT cookie is `Secure`: with curl, read it from `Set-Cookie` and send it back in a `Cookie` header.
@@ -46,8 +43,7 @@ Inter-session project memory. This file contains ~50 lines: summarize or remove 
 - Data seeded by SQL bypasses the gap map eviction; a roster change or a restart refreshes it.
 
 ## Next steps (to operate the MVP)
-- Set the provider keys and the R2 credentials in `.env`, then run a real upload → extraction → generation once
-  and check the first Mistral/DeepSeek/R2 responses (never exercised against the live services).
+- Provider keys and R2 credentials remain necessary for live upload, extraction and generation.
 - The evolution baseline is the first posterior, not the base prior the engine reports; decide if it should be the prior.
 - Add `/students/me/courses`, `/users/me` and the institutional indicators to the PlantUML diagrams.
 - Push delivery (`PushReminderNotificationService`, `PushInvitationNotificationService`) still only logs.

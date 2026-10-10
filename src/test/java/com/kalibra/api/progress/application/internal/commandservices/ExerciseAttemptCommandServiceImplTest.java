@@ -192,7 +192,7 @@ class ExerciseAttemptCommandServiceImplTest {
         // Arrange
         var command = new RequestPracticeExerciseCommand(holderId, courseId, subtopicId);
         var view = new PracticeExerciseView(exerciseId.value(), subtopicId.value(), "Solve 2x + 3 = 7",
-                List.of("x = 1", "x = 2", "x = 3", "x = 5"));
+                List.of("x = 1", "x = 2", "x = 3", "x = 5"), "MEDIUM");
         when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
         when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId))
                 .thenReturn(Optional.of(ProgressFixtures.attempt(holderId, courseId, subtopicId, "B", 0.30, 0.52)));

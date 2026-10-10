@@ -265,6 +265,7 @@ public class SubtopicMasteryQueryServiceImpl
                 studentId.value(),
                 courseId.value(),
                 !attempts.isEmpty() || !masteries.isEmpty(),
+                attempts.stream().map(ExerciseAttempt::getAnsweredAt).max(Comparator.naturalOrder()).orElse(null),
                 lines,
                 recentFeedback
         );

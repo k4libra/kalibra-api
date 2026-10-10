@@ -52,7 +52,8 @@ public class ExternalCurriculumService {
                         snapshot.exerciseId(),
                         snapshot.subtopicId(),
                         snapshot.statement(),
-                        snapshot.options()
+                        snapshot.options(),
+                        snapshot.difficulty()
                 ));
     }
 

@@ -7,6 +7,7 @@ public record PracticeExerciseResource(
         UUID exerciseId,
         UUID subtopicId,
         String statement,
-        List<String> options
+        List<String> options,
+        String difficulty
 ) {
 }

@@ -106,6 +106,7 @@ class CurriculumContextFacadeImplTest {
         assertThat(snapshot).isPresent();
         assertThat(snapshot.get().exerciseId()).isEqualTo(approved.getId().value());
         assertThat(snapshot.get().statement()).isEqualTo("Solve 2x + 3 = 7");
+        assertThat(snapshot.get().difficulty()).isEqualTo(approved.getDifficulty().name());
         assertThat(snapshot.get().options()).containsExactly("x = 1", "x = 2", "x = 3", "x = 5");
         verify(generatedExerciseCommandService).handle(command.capture());
         assertThat(command.getValue().mastery()).contains(new MasteryProbability(0.4));
