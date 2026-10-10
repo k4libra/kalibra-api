@@ -15,4 +15,6 @@ public interface CourseRepository {
     Optional<Course> findByIdAndHolderId(CourseId id, String holderId);
 
     List<Course> findAllByHolderId(String holderId);
+
+    List<Course> findAll();
 }
