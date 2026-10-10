@@ -1,6 +1,7 @@
 package com.kalibra.api.enrollment.application.internal.queryservices;
 
 import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalCurriculumService;
+import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalIamService;
 import com.kalibra.api.enrollment.domain.model.aggregates.Enrollment;
 import com.kalibra.api.enrollment.domain.model.commands.EnrollStudentCommand;
 import com.kalibra.api.enrollment.domain.model.queries.GetEnrollmentRostersByHolderIdQuery;
@@ -31,6 +32,9 @@ class EnrollmentQueryServiceImplTest {
     @Mock
     ExternalCurriculumService externalCurriculumService;
 
+    @Mock
+    ExternalIamService externalIamService;
+
     @InjectMocks
     EnrollmentQueryServiceImpl service;
 
@@ -44,6 +48,8 @@ class EnrollmentQueryServiceImplTest {
         when(externalCurriculumService.fetchCoursesByHolderId("teacher-1")).thenReturn(List.of(algebra, physics));
         when(enrollmentRepository.findAllByCourseIdIn(List.of(new CourseId(algebra.courseId()), new CourseId(physics.courseId()))))
                 .thenReturn(List.of(enrollment));
+        when(externalIamService.fetchUserName(enrollment.getStudentId().value()))
+                .thenReturn(new ExternalIamService.UserName("Ana", "Pérez"));
 
         // Act
         var rosters = service.handle(new GetEnrollmentRostersByHolderIdQuery("teacher-1"));
@@ -53,7 +59,11 @@ class EnrollmentQueryServiceImplTest {
         assertThat(rosters.get(0).courseName()).isEqualTo("Algebra");
         assertThat(rosters.get(0).enrolledCount()).isEqualTo(1);
         assertThat(rosters.get(0).students()).singleElement()
-                .satisfies(line -> assertThat(line.email()).isEqualTo("ana@kalibra.pe"));
+                .satisfies(line -> {
+                    assertThat(line.email()).isEqualTo("ana@kalibra.pe");
+                    assertThat(line.firstName()).isEqualTo("Ana");
+                    assertThat(line.lastName()).isEqualTo("Pérez");
+                });
         assertThat(rosters.get(1).enrolledCount()).isZero();
         assertThat(rosters.get(1).students()).isEmpty();
     }

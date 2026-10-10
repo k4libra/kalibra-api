@@ -55,7 +55,7 @@ public class CourseIndicatorsCalculator {
                 .map(entry -> {
                     var correct = correctOf(entry.getValue());
                     var submitted = entry.getValue().size();
-                    return new StudentAccuracyLine(UUID.fromString(entry.getKey()), null, correct, submitted,
+                    return new StudentAccuracyLine(UUID.fromString(entry.getKey()), null, null, null, correct, submitted,
                             Optional.of(percentage(correct, submitted)), true);
                 })
                 .toList();

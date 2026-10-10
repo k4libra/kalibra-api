@@ -1,5 +1,6 @@
 package com.kalibra.api.enrollment.application.acl;
 
+import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalIamService;
 import com.kalibra.api.enrollment.domain.model.commands.EnrollStudentCommand;
 import com.kalibra.api.enrollment.domain.model.queries.GetAcceptedInvitationByStudentAndCourseQuery;
 import com.kalibra.api.enrollment.domain.model.queries.GetEnrollmentByStudentAndCourseQuery;
@@ -23,15 +24,18 @@ public class EnrollmentContextFacadeImpl implements EnrollmentContextFacade {
     private final EnrollmentQueryService enrollmentQueryService;
     private final EnrollmentCommandService enrollmentCommandService;
     private final InvitationQueryService invitationQueryService;
+    private final ExternalIamService externalIamService;
 
     public EnrollmentContextFacadeImpl(
             EnrollmentQueryService enrollmentQueryService,
             EnrollmentCommandService enrollmentCommandService,
-            InvitationQueryService invitationQueryService
+            InvitationQueryService invitationQueryService,
+            ExternalIamService externalIamService
     ) {
         this.enrollmentQueryService = enrollmentQueryService;
         this.enrollmentCommandService = enrollmentCommandService;
         this.invitationQueryService = invitationQueryService;
+        this.externalIamService = externalIamService;
     }
 
     @Override
@@ -39,11 +43,16 @@ public class EnrollmentContextFacadeImpl implements EnrollmentContextFacade {
         return enrollmentQueryService
                 .handle(new GetEnrollmentsByCourseQuery(new CourseId(courseId)))
                 .stream()
-                .map(enrollment -> new RosterEntry(
-                        enrollment.getStudentId().value(),
-                        enrollment.getStudentEmail().value(),
-                        enrollment.getEnrolledAt()
-                ))
+                .map(enrollment -> {
+                    var name = externalIamService.fetchUserName(enrollment.getStudentId().value());
+                    return new RosterEntry(
+                            enrollment.getStudentId().value(),
+                            enrollment.getStudentEmail().value(),
+                            name.firstName(),
+                            name.lastName(),
+                            enrollment.getEnrolledAt()
+                    );
+                })
                 .toList();
     }
 

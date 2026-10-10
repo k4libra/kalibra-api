@@ -67,8 +67,8 @@ class IndicatorsControllerTest {
         var inequalities = UUID.randomUUID();
         return new CourseIndicatorsReport(courseId.value(), true,
                 new AccuracyIndicator(66.7, List.of(
-                        new StudentAccuracyLine(UUID.randomUUID(), "ana@kalibra.pe", 2, 3, Optional.of(66.7), true),
-                        new StudentAccuracyLine(UUID.randomUUID(), "luis@kalibra.pe", 0, 0, Optional.empty(), false))),
+                        new StudentAccuracyLine(UUID.randomUUID(), "ana@kalibra.pe", "Ana", "Pérez", 2, 3, Optional.of(66.7), true),
+                        new StudentAccuracyLine(UUID.randomUUID(), "luis@kalibra.pe", "Ana", "Pérez", 0, 0, Optional.empty(), false))),
                 new PracticeIndicator(3, 3.0, 1, 2, List.of(
                         new SubtopicPracticeLine(equations, "Equations", 3), new SubtopicPracticeLine(inequalities, "Inequalities", 0))),
                 new MasteryEvolutionIndicator(52.0, 60.0, 8, List.of(

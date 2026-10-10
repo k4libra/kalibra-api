@@ -1,5 +1,6 @@
 package com.kalibra.api.enrollment.application.acl;
 
+import com.kalibra.api.enrollment.application.internal.outboundservices.acl.ExternalIamService;
 import com.kalibra.api.enrollment.domain.model.aggregates.Enrollment;
 import com.kalibra.api.enrollment.domain.model.aggregates.Invitation;
 import com.kalibra.api.enrollment.domain.model.commands.AcceptInvitationCommand;
@@ -44,6 +45,9 @@ class EnrollmentContextFacadeImplTest {
     @Mock
     InvitationQueryService invitationQueryService;
 
+    @Mock
+    ExternalIamService externalIamService;
+
     @InjectMocks
     EnrollmentContextFacadeImpl facade;
 
@@ -56,10 +60,13 @@ class EnrollmentContextFacadeImplTest {
     @Test
     void shouldFetchTheRosterOfTheCourse() {
         when(enrollmentQueryService.handle(new GetEnrollmentsByCourseQuery(courseId))).thenReturn(List.of(enrollment));
+        when(externalIamService.fetchUserName(studentId.value()))
+                .thenReturn(new ExternalIamService.UserName("Ana", "Pérez"));
 
         assertThat(facade.fetchCourseRoster(courseId.value())).singleElement().satisfies(entry -> {
             assertThat(entry.studentId()).isEqualTo(studentId.value());
             assertThat(entry.email()).isEqualTo("ana@kalibra.pe");
+            assertThat(entry.firstName()).isEqualTo("Ana");
         });
     }
 

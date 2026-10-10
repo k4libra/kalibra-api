@@ -69,6 +69,8 @@ public class MasteryGapAnalyzer {
         return new StudentMasteryCell(
                 student.value(),
                 null,
+                null,
+                null,
                 subtopicId.value(),
                 mastery.map(SubtopicMastery::getCurrentEstimate),
                 mastery.map(SubtopicMastery::getLevel).orElse(MasteryLevel.NO_DATA)
