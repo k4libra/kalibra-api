@@ -85,7 +85,7 @@ class ProgressOutboundServicesTest {
         when(enrollmentContextFacade.isStudentEnrolled(new EnrollmentLookupRequest(studentId.value(), courseId.value())))
                 .thenReturn(true);
         when(enrollmentContextFacade.fetchCourseRoster(courseId.value()))
-                .thenReturn(List.of(new RosterEntry(studentId.value(), "ana@kalibra.pe", Instant.now())));
+                .thenReturn(List.of(new RosterEntry(studentId.value(), "ana@kalibra.pe", "Ana", "Pérez", Instant.now())));
 
         assertThat(service.isEnrolled(studentId, courseId)).isTrue();
         assertThat(service.fetchRoster(courseId)).containsExactly(studentId);

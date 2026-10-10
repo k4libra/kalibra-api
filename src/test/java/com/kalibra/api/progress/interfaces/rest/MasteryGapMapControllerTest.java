@@ -54,8 +54,8 @@ class MasteryGapMapControllerTest {
         when(queryService.handle(query)).thenReturn(new MasteryGapMap(courseId.value(), true,
                 List.of(new SubtopicGapLine(inequalities, "Inequalities", 25.0, 2, 0, 0, 1, 1),
                         new SubtopicGapLine(UUID.randomUUID(), "Equations", 70.0, 0, 1, 1, 1, 2)),
-                List.of(new StudentMasteryCell(student, "ana@kalibra.pe", inequalities, Optional.of(new MasteryProbability(0.2)), MasteryLevel.LOW),
-                        new StudentMasteryCell(UUID.randomUUID(), "rosa@kalibra.pe", inequalities, Optional.empty(), MasteryLevel.NO_DATA))));
+                List.of(new StudentMasteryCell(student, "ana@kalibra.pe", "Ana", "Pérez", inequalities, Optional.of(new MasteryProbability(0.2)), MasteryLevel.LOW),
+                        new StudentMasteryCell(UUID.randomUUID(), "rosa@kalibra.pe", "Ana", "Pérez", inequalities, Optional.empty(), MasteryLevel.NO_DATA))));
 
         mockMvc.perform(get("/api/v1/courses/{id}/mastery-gap-map", courseId.value()).with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isOk())

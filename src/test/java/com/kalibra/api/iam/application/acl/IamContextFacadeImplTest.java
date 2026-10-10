@@ -32,7 +32,7 @@ class IamContextFacadeImplTest {
     @Test
     void shouldReturnIdWhenEmailBelongsToAStudent() {
         // Arrange
-        var student = User.register(new Email("ada@kalibra.com"), new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var student = User.register(new Email("ada@kalibra.com"), "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         when(userQueryService.handle(any(GetUserByEmailQuery.class))).thenReturn(Optional.of(student));
 
         // Act & Assert
@@ -42,7 +42,7 @@ class IamContextFacadeImplTest {
     @Test
     void shouldReturnEmptyWhenEmailBelongsToATeacher() {
         // Arrange
-        var teacher = User.register(new Email("bob@kalibra.com"), new HashedPassword("hashed"), ClientApplication.WEB_PLATFORM);
+        var teacher = User.register(new Email("bob@kalibra.com"), "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.WEB_PLATFORM);
         when(userQueryService.handle(any(GetUserByEmailQuery.class))).thenReturn(Optional.of(teacher));
 
         // Act & Assert
@@ -66,7 +66,7 @@ class IamContextFacadeImplTest {
     @Test
     void shouldReturnSummaryWithNeutralTypesWhenUserExists() {
         // Arrange
-        var user = User.register(new Email("ada@kalibra.com"), new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var user = User.register(new Email("ada@kalibra.com"), "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         when(userQueryService.handle(any(GetUserByIdQuery.class))).thenReturn(Optional.of(user));
 
         // Act

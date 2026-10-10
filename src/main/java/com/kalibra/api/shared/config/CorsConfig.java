@@ -7,6 +7,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 // Needed only once a browser frontend calls this API from a different origin
@@ -15,16 +16,20 @@ import java.util.List;
 @Configuration
 public class CorsConfig {
 
-    private final String allowedOrigin;
+    private final List<String> allowedOrigins;
 
+    // Comma-separated list, e.g. "http://localhost:5173,https://kalibra.vercel.app".
     public CorsConfig(@Value("${cors.allowed-origin}") String allowedOrigin) {
-        this.allowedOrigin = allowedOrigin;
+        this.allowedOrigins = Arrays.stream(allowedOrigin.split(","))
+                .map(String::strip)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         var config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of(allowedOrigin));   // never "*" combined with allowCredentials
+        config.setAllowedOrigins(allowedOrigins);   // never "*" combined with allowCredentials
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);

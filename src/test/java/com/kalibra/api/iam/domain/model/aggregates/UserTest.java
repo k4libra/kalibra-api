@@ -16,7 +16,7 @@ class UserTest {
     @Test
     void shouldRegisterStudentRoleWhenApplicationIsMobile() {
         // Act
-        var user = User.register(EMAIL, PASSWORD, ClientApplication.MOBILE_APP);
+        var user = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.MOBILE_APP);
 
         // Assert
         assertThat(user.getId()).isNotNull();
@@ -29,7 +29,7 @@ class UserTest {
     @Test
     void shouldRegisterTeacherRoleWhenApplicationIsWeb() {
         // Act
-        var user = User.register(EMAIL, PASSWORD, ClientApplication.WEB_PLATFORM);
+        var user = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.WEB_PLATFORM);
 
         // Assert
         assertThat(user.getRoles()).containsExactlyInAnyOrder(Role.REGISTERED_USER, Role.TEACHER);
@@ -38,7 +38,7 @@ class UserTest {
     @Test
     void shouldReportRolesThroughHasRole() {
         // Arrange
-        var user = User.register(EMAIL, PASSWORD, ClientApplication.MOBILE_APP);
+        var user = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.MOBILE_APP);
 
         // Act & Assert
         assertThat(user.hasRole(Role.STUDENT)).isTrue();
@@ -48,7 +48,7 @@ class UserTest {
     @Test
     void shouldKeepExistingRolesWhenGrantingAdministrator() {
         // Arrange
-        var user = User.register(EMAIL, PASSWORD, ClientApplication.WEB_PLATFORM);
+        var user = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.WEB_PLATFORM);
 
         // Act
         user.grantAdministratorRole();
@@ -56,5 +56,32 @@ class UserTest {
         // Assert
         assertThat(user.getRoles())
                 .containsExactlyInAnyOrder(Role.REGISTERED_USER, Role.TEACHER, Role.ADMINISTRATOR);
+    }
+
+    @Test
+    void shouldRegisterAdministratorsWithoutTeacherOrStudentRoles() {
+        var admin = User.registerAdministrator(EMAIL, "Admin", "Test", PASSWORD);
+
+        assertThat(admin.getRoles()).containsExactlyInAnyOrder(Role.REGISTERED_USER, Role.ADMINISTRATOR);
+        assertThat(admin.canUse(ClientApplication.WEB_PLATFORM)).isTrue();
+        assertThat(admin.canUse(ClientApplication.MOBILE_APP)).isFalse();
+    }
+
+    @Test
+    void shouldRestrictEachRoleToItsClientApplication() {
+        var student = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.MOBILE_APP);
+        var teacher = User.register(EMAIL, "Ada", "Lovelace", PASSWORD, ClientApplication.WEB_PLATFORM);
+
+        assertThat(student.canUse(ClientApplication.MOBILE_APP)).isTrue();
+        assertThat(student.canUse(ClientApplication.WEB_PLATFORM)).isFalse();
+        assertThat(teacher.canUse(ClientApplication.WEB_PLATFORM)).isTrue();
+        assertThat(teacher.canUse(ClientApplication.MOBILE_APP)).isFalse();
+    }
+
+    @Test
+    void shouldRejectBlankNames() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        User.register(EMAIL, " ", "Lovelace", PASSWORD, ClientApplication.MOBILE_APP))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 }

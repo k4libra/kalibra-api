@@ -286,8 +286,7 @@ public class SubtopicMasteryQueryServiceImpl
         var subtopics = externalCurriculumService.fetchSubtopics(courseId);
         Map<UUID, SubtopicSummary> known = subtopics.stream()
                 .collect(Collectors.toMap(SubtopicSummary::subtopicId, Function.identity(), (first, second) -> first));
-        Map<UUID, String> emails = roster.stream()
-                .collect(Collectors.toMap(RosterEntry::studentId, RosterEntry::email, (first, second) -> first));
+        Map<UUID, RosterEntry> rosterEntries = rosterById(roster);
 
         var lines = new ArrayList<SubtopicGapLine>();
         var cells = new ArrayList<StudentMasteryCell>();
@@ -300,8 +299,9 @@ public class SubtopicMasteryQueryServiceImpl
         }
         for (var cell : analyzed.students()) {
             if (known.containsKey(cell.subtopicId())) {
-                cells.add(new StudentMasteryCell(cell.studentId(), emails.get(cell.studentId()), cell.subtopicId(),
-                        cell.mastery(), cell.level()));
+                var student = rosterEntries.get(cell.studentId());
+                cells.add(new StudentMasteryCell(cell.studentId(), emailOf(student), firstNameOf(student),
+                        lastNameOf(student), cell.subtopicId(), cell.mastery(), cell.level()));
             }
         }
         var withData = lines.stream().map(SubtopicGapLine::subtopicId).collect(Collectors.toSet());
@@ -312,25 +312,44 @@ public class SubtopicMasteryQueryServiceImpl
             lines.add(new SubtopicGapLine(subtopic.subtopicId(), subtopic.name(), 0, 0, 0, 0,
                     roster.size(), lines.size() + 1));
             for (var entry : roster) {
-                cells.add(new StudentMasteryCell(entry.studentId(), entry.email(), subtopic.subtopicId(),
+                cells.add(new StudentMasteryCell(entry.studentId(), entry.email(), entry.firstName(),
+                        entry.lastName(), subtopic.subtopicId(),
                         Optional.empty(), MasteryLevel.NO_DATA));
             }
         }
         return new MasteryGapMap(courseId.value(), analyzed.hasSufficientData(), lines, cells);
     }
 
+    private static Map<UUID, RosterEntry> rosterById(List<RosterEntry> roster) {
+        return roster.stream()
+                .collect(Collectors.toMap(RosterEntry::studentId, Function.identity(), (first, second) -> first));
+    }
+
+    private static String emailOf(RosterEntry entry) {
+        return entry == null ? null : entry.email();
+    }
+
+    private static String firstNameOf(RosterEntry entry) {
+        return entry == null ? null : entry.firstName();
+    }
+
+    private static String lastNameOf(RosterEntry entry) {
+        return entry == null ? null : entry.lastName();
+    }
+
     private AccuracyIndicator complete(AccuracyIndicator accuracy, List<RosterEntry> roster) {
-        Map<UUID, String> emails = roster.stream()
-                .collect(Collectors.toMap(RosterEntry::studentId, RosterEntry::email, (first, second) -> first));
+        Map<UUID, RosterEntry> rosterEntries = rosterById(roster);
         var lines = new ArrayList<StudentAccuracyLine>();
         for (var line : accuracy.perStudent()) {
-            lines.add(new StudentAccuracyLine(line.studentId(), emails.get(line.studentId()), line.correct(),
-                    line.submitted(), line.accuracy(), true));
+            var student = rosterEntries.get(line.studentId());
+            lines.add(new StudentAccuracyLine(line.studentId(), emailOf(student), firstNameOf(student),
+                    lastNameOf(student), line.correct(), line.submitted(), line.accuracy(), true));
         }
         var active = lines.stream().map(StudentAccuracyLine::studentId).collect(Collectors.toSet());
         for (var entry : roster) {
             if (!active.contains(entry.studentId())) {
-                lines.add(new StudentAccuracyLine(entry.studentId(), entry.email(), 0, 0, Optional.empty(), false));
+                lines.add(new StudentAccuracyLine(entry.studentId(), entry.email(), entry.firstName(),
+                        entry.lastName(), 0, 0, Optional.empty(), false));
             }
         }
         return new AccuracyIndicator(accuracy.groupAccuracy(), lines);

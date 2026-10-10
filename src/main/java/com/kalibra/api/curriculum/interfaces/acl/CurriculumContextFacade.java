@@ -19,6 +19,8 @@ public interface CurriculumContextFacade {
 
     List<CourseSummary> fetchCoursesByHolderId(String holderId);
 
+    List<CourseSummary> fetchAllCourses();
+
     List<SubtopicSummary> fetchSubtopics(UUID courseId);
 
     Optional<ExerciseSnapshot> provideExerciseForStudent(PracticeExerciseRequest request);

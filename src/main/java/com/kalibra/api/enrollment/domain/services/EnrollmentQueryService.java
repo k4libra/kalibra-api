@@ -3,6 +3,7 @@ package com.kalibra.api.enrollment.domain.services;
 import com.kalibra.api.enrollment.domain.model.aggregates.Enrollment;
 import com.kalibra.api.enrollment.domain.model.queries.*;
 import com.kalibra.api.enrollment.domain.model.valueobjects.CourseRosterGroup;
+import com.kalibra.api.enrollment.domain.model.valueobjects.EnrolledCourse;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,5 +20,9 @@ public interface EnrollmentQueryService {
 
     Optional<Enrollment> handle(
             GetEnrollmentByStudentAndCourseQuery query
+    );
+
+    List<EnrolledCourse> handle(
+            GetEnrolledCoursesByStudentQuery query
     );
 }

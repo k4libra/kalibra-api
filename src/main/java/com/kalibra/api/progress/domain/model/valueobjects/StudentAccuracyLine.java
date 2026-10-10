@@ -6,6 +6,8 @@ import java.util.UUID;
 public record StudentAccuracyLine(
         UUID studentId,
         String email,
+        String firstName,
+        String lastName,
         int correct,
         int submitted,
         Optional<Double> accuracy,

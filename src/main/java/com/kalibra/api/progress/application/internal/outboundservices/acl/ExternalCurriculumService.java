@@ -9,6 +9,7 @@ import com.kalibra.api.progress.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.progress.domain.model.valueobjects.PracticeExerciseView;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.shared.contracts.curriculum.PracticeExerciseRequest;
+import com.kalibra.api.shared.contracts.curriculum.CourseSummary;
 import com.kalibra.api.shared.contracts.curriculum.SubtopicSummary;
 import com.kalibra.api.shared.contracts.curriculum.SubtopicVerificationStats;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,10 @@ public class ExternalCurriculumService {
                 courseId.value(),
                 holderId
         );
+    }
+
+    public List<CourseSummary> fetchAllCourses() {
+        return curriculumContextFacade.fetchAllCourses();
     }
 
     public List<SubtopicSummary> fetchSubtopics(CourseId courseId) {

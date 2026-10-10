@@ -35,6 +35,9 @@ kalibra:
   jwt:
     secret: ${JWT_SECRET}
     expiration-minutes: ${JWT_EXPIRATION_MINUTES:30}
+    cookie-secure: ${JWT_COOKIE_SECURE:true}   # false only for local http clients (Android emulator)
+  seed:
+    generic-users: ${KALIBRA_SEED_GENERIC_USERS:false}   # true only in local/demo: creates the generic test accounts
   storage:
     provider: ${STORAGE_PROVIDER:r2}   # r2 (Cloudflare R2, required for ingestion) | filesystem (local development only)
     materials-dir: ${MATERIALS_STORAGE_DIR:./storage/materials}
@@ -55,6 +58,12 @@ kalibra:
     gap-map-cache-ttl: ${GAP_MAP_CACHE_TTL:PT10M}
   curriculum:
     ingestion-reconciliation-delay: ${INGESTION_RECONCILIATION_DELAY:PT5M}
+
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}   # API docs and Swagger UI are off unless explicitly enabled
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
 
 cors:
   allowed-origin: ${CORS_ALLOWED_ORIGIN:http://localhost:5173}

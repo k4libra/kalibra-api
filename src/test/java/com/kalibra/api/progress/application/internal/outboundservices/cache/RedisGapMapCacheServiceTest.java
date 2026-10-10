@@ -54,9 +54,9 @@ class RedisGapMapCacheServiceTest {
         var subtopicId = UUID.randomUUID();
         var map = new MasteryGapMap(courseId.value(), true,
                 List.of(new SubtopicGapLine(subtopicId, "Equations", 41.5, 1, 1, 0, 1, 1)),
-                List.of(new StudentMasteryCell(UUID.randomUUID(), "ana@kalibra.pe", subtopicId,
+                List.of(new StudentMasteryCell(UUID.randomUUID(), "ana@kalibra.pe", "Ana", "Pérez", subtopicId,
                                 Optional.of(new MasteryProbability(0.41)), MasteryLevel.MEDIUM),
-                        new StudentMasteryCell(UUID.randomUUID(), "luis@kalibra.pe", subtopicId,
+                        new StudentMasteryCell(UUID.randomUUID(), "luis@kalibra.pe", "Ana", "Pérez", subtopicId,
                                 Optional.empty(), MasteryLevel.NO_DATA)));
         var stored = ArgumentCaptor.forClass(String.class);
         when(redis.opsForValue()).thenReturn(values);

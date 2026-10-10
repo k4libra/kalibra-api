@@ -19,5 +19,7 @@ public interface EnrollmentJpaRepository
             UUID courseId
     );
 
+    List<EnrollmentJpaEntity> findAllByStudentId(UUID studentId);
+
     boolean existsByInvitationId(UUID invitationId);
 }

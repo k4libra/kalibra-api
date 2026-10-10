@@ -33,7 +33,7 @@ class UserRepositoryImplTest {
     @Test
     void shouldReturnUserWhenFoundById() {
         // Arrange
-        var user = User.register(new Email("ada@kalibra.com"), new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
+        var user = User.register(new Email("ada@kalibra.com"), "Ada", "Lovelace", new HashedPassword("hashed"), ClientApplication.MOBILE_APP);
         var entity = new UserJpaEntity();
         when(jpaRepository.findById(user.getId())).thenReturn(Optional.of(entity));
         when(mapper.toDomain(entity)).thenReturn(user);

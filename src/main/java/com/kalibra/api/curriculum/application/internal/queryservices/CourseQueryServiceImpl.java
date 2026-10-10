@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.application.internal.queryservices;
 
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetAllCoursesQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
 import com.kalibra.api.curriculum.domain.services.CourseQueryService;
@@ -22,6 +23,11 @@ public class CourseQueryServiceImpl implements CourseQueryService {
     @Override
     public List<Course> handle(GetCoursesByHolderIdQuery query) {
         return courseRepository.findAllByHolderId(query.holderId());
+    }
+
+    @Override
+    public List<Course> handle(GetAllCoursesQuery query) {
+        return courseRepository.findAll();
     }
 
     @Override

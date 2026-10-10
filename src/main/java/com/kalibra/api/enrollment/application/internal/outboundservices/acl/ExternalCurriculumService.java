@@ -3,6 +3,7 @@ package com.kalibra.api.enrollment.application.internal.outboundservices.acl;
 import com.kalibra.api.enrollment.domain.model.valueobjects.CourseId;
 import com.kalibra.api.curriculum.interfaces.acl.CurriculumContextFacade;
 import com.kalibra.api.shared.contracts.curriculum.CourseSummary;
+import com.kalibra.api.shared.contracts.curriculum.SubtopicSummary;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -30,6 +31,10 @@ public class ExternalCurriculumService {
         return curriculumContextFacade.fetchCourseSummary(
                 courseId.value()
         );
+    }
+
+    public List<SubtopicSummary> fetchSubtopics(CourseId courseId) {
+        return curriculumContextFacade.fetchSubtopics(courseId.value());
     }
 
     public List<CourseSummary> fetchCoursesByHolderId(String holderId) {

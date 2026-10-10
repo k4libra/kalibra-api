@@ -54,6 +54,14 @@ public class EnrollmentRepositoryImpl implements EnrollmentRepository {
     }
 
     @Override
+    public List<Enrollment> findAllByStudentId(StudentId studentId) {
+        return jpaRepository.findAllByStudentId(studentId.value())
+                .stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<Enrollment> findByStudentIdAndCourseId(
             StudentId studentId,
             CourseId courseId

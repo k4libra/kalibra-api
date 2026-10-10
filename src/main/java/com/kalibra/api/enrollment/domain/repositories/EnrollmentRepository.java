@@ -23,6 +23,10 @@ public interface EnrollmentRepository {
             CourseId courseId
     );
 
+    List<Enrollment> findAllByStudentId(
+            StudentId studentId
+    );
+
     boolean existsByInvitationId(
             InvitationId invitationId
     );

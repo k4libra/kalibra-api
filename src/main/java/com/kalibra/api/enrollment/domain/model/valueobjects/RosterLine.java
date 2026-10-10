@@ -6,6 +6,8 @@ import java.util.UUID;
 public record RosterLine(
         UUID studentId,
         String email,
+        String firstName,
+        String lastName,
         Instant enrolledAt
 ) {
 }

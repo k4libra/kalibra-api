@@ -6,6 +6,8 @@ import java.util.UUID;
 public record StudentMasteryCell(
         UUID studentId,
         String email,
+        String firstName,
+        String lastName,
         UUID subtopicId,
         Optional<MasteryProbability> mastery,
         MasteryLevel level

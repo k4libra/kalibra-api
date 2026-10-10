@@ -79,8 +79,8 @@ class SubtopicMasteryQueryServiceImplTest {
     private final StudentId luis = new StudentId(UUID.randomUUID());
     private final String anaHolder = ana.value().toString();
     private final List<RosterEntry> roster = List.of(
-            new RosterEntry(ana.value(), "ana@kalibra.pe", Instant.now()),
-            new RosterEntry(luis.value(), "luis@kalibra.pe", Instant.now()));
+            new RosterEntry(ana.value(), "ana@kalibra.pe", "Ana", "Pérez", Instant.now()),
+            new RosterEntry(luis.value(), "luis@kalibra.pe", "Ana", "Pérez", Instant.now()));
 
     @BeforeEach
     void setUp() {
@@ -225,8 +225,8 @@ class SubtopicMasteryQueryServiceImplTest {
 
     @Test
     void shouldServeTheCachedGapMapWhileItCoversTheRoster() {
-        var cell = new StudentMasteryCell(ana.value(), "ana@kalibra.pe", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
-        var other = new StudentMasteryCell(luis.value(), "luis@kalibra.pe", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
+        var cell = new StudentMasteryCell(ana.value(), "ana@kalibra.pe", "Ana", "Pérez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
+        var other = new StudentMasteryCell(luis.value(), "luis@kalibra.pe", "Ana", "Pérez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
         var cached = new MasteryGapMap(courseId.value(), false, List.of(), List.of(cell, other));
         when(gapMapCacheService.find(courseId)).thenReturn(Optional.of(cached));
 
@@ -237,7 +237,7 @@ class SubtopicMasteryQueryServiceImplTest {
 
     @Test
     void shouldRebuildTheGapMapWhenTheCachedOneMissesANewlyEnrolledStudent() {
-        var cell = new StudentMasteryCell(ana.value(), "ana@kalibra.pe", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
+        var cell = new StudentMasteryCell(ana.value(), "ana@kalibra.pe", "Ana", "Pérez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
         var stale = new MasteryGapMap(courseId.value(), false, List.of(), List.of(cell));
         when(gapMapCacheService.find(courseId)).thenReturn(Optional.of(stale));
         when(subtopicMasteryRepository.findAllByCourseId(courseId)).thenReturn(List.of());

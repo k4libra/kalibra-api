@@ -41,4 +41,9 @@ public class CourseRepositoryImpl implements CourseRepository {
     public List<Course> findAllByHolderId(String holderId) {
         return jpaRepository.findAllByHolderId(holderId).stream().map(mapper::toDomain).toList();
     }
+
+    @Override
+    public List<Course> findAll() {
+        return jpaRepository.findAll().stream().map(mapper::toDomain).toList();
+    }
 }

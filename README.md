@@ -276,6 +276,25 @@ Optional settings:
 | `REDIS_URL`                      | `redis://localhost:6379/0` | Engine task queue and gap map cache                  |
 | `GAP_MAP_CACHE_TTL`              | `PT10M`                    | Lifetime of a cached gap map                         |
 | `INGESTION_RECONCILIATION_DELAY` | `PT5M`                     | How often pending material is retried                |
+| `CORS_ALLOWED_ORIGIN`            | `http://localhost:5173`    | Comma-separated origins allowed to send the session cookie |
+| `JWT_COOKIE_SECURE`              | `true`                     | `false` only for local clients over plain http (Android emulator) |
+| `KALIBRA_SEED_GENERIC_USERS`     | `false`                    | `true` only in local/demo: creates the generic test accounts |
+| `SWAGGER_ENABLED`                | `false`                    | `true` only in local: publishes Swagger UI and `/v3/api-docs` |
+
+### Generic test accounts
+
+With `KALIBRA_SEED_GENERIC_USERS=true` the API creates these accounts on startup (existing emails are
+skipped). The password is `@` plus the alias without the dot. Never enable it in production.
+
+| Role            | Email                                   | Password                         | Client  |
+| --------------- | --------------------------------------- | -------------------------------- | ------- |
+| `TEACHER`       | `profesor.test1@upc.edu.pe`, `profesor.test2@upc.edu.pe` | `@profesortest1`, `@profesortest2` | Web |
+| `STUDENT`       | `estudiante.test1@upc.edu.pe` … `estudiante.test3@upc.edu.pe` | `@estudiantetest1` … `@estudiantetest3` | Mobile |
+| `ADMINISTRATOR` | `admin.test1@upc.edu.pe`                | `@admintest1`                    | Web     |
+
+Sign-in accepts an optional `application`: `MOBILE_APP` admits only students and `WEB_PLATFORM` only
+teachers and administrators (`403` otherwise). Administrators are never self-registered and only reach
+the institutional indicators.
 
 ### Running the application
 
@@ -298,9 +317,9 @@ on startup, each module with its own migrations and history table.
 
 ### API documentation
 
-With the application running, Swagger UI is available at
-`http://localhost:8080/swagger-ui.html` and the OpenAPI document at `/v3/api-docs`
-(both public). Authentication endpoints need no credentials; for the protected ones,
+With `SWAGGER_ENABLED=true` (local only), Swagger UI is available at
+`http://localhost:8080/swagger-ui.html` and the OpenAPI document at `/v3/api-docs`.
+They are disabled by default, so no deployed environment publishes the API surface. Authentication endpoints need no credentials; for the protected ones,
 call `sign-in` with "Try it out" first — the browser stores the JWT cookie and sends it
 on every later call.
 
@@ -422,9 +441,11 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `POST` | `/api/v1/authentication/sign-up`                        | No                           |
 | `POST` | `/api/v1/authentication/sign-in`                        | No                           |
 | `POST` | `/api/v1/authentication/sign-out`                       | No                           |
-| `GET`  | `/api/v1/student-preferences/me`                        | Yes (own preferences)        |
+| `GET`  | `/api/v1/users/me`                                      | Yes (signed-in user)         |
+| `GET`  | `/api/v1/student-preferences/me`                        | `STUDENT` (own preferences)  |
 | `PUT`  | `/api/v1/student-preferences/me/daily-reminder`         | `STUDENT` (own preferences)  |
-| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | Yes (own preferences)        |
+| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | `STUDENT` (own preferences)  |
+| `GET`  | `/api/v1/students/me/courses`                           | `STUDENT` (own enrollments)  |
 | `POST` | `/api/v1/courses`                                       | `TEACHER`                    |
 | `GET`  | `/api/v1/courses`                                       | `TEACHER` (own courses only) |
 | `GET`  | `/api/v1/courses/{id}`                                  | `TEACHER` (own course only)  |
@@ -452,8 +473,12 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `GET`  | `/api/v1/courses/{id}/mastery-gap-map`                  | `TEACHER` (own course only)  |
 | `GET`  | `/api/v1/courses/{id}/indicators` (JSON, or CSV with `Accept: text/csv`) | `TEACHER` (own course only) |
 | `GET`  | `/api/v1/courses/{id}/indicators/guide`                 | `TEACHER`                    |
+| `GET`  | `/api/v1/institutional-indicators` (JSON, or CSV with `Accept: text/csv`) | `ADMINISTRATOR` |
+| `GET`  | `/api/v1/institutional-indicators/critical-subtopics`   | `ADMINISTRATOR`              |
 | `GET`  | `/actuator/health`                                      | No                           |
-| `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No                           |
+| `GET`  | `/swagger-ui.html`, `/v3/api-docs`                      | No, only with `SWAGGER_ENABLED=true` |
+
+Any other path is denied.
 
 ## Error Handling
 

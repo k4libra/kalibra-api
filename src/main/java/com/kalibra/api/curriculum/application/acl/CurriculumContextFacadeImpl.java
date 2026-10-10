@@ -6,6 +6,7 @@ import com.kalibra.api.curriculum.domain.model.aggregates.GeneratedExercise;
 import com.kalibra.api.curriculum.domain.model.commands.GenerateExerciseForStudentCommand;
 import com.kalibra.api.curriculum.domain.model.entities.ExerciseOption;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetAllCoursesQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetGeneratedExerciseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetVerificationApprovalByCourseQuery;
@@ -58,6 +59,13 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
     @Override
     public List<CourseSummary> fetchCoursesByHolderId(String holderId) {
         return courseQueryService.handle(new GetCoursesByHolderIdQuery(holderId)).stream()
+                .map(this::toSummary)
+                .toList();
+    }
+
+    @Override
+    public List<CourseSummary> fetchAllCourses() {
+        return courseQueryService.handle(new GetAllCoursesQuery()).stream()
                 .map(this::toSummary)
                 .toList();
     }

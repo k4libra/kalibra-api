@@ -7,6 +7,8 @@ import java.util.UUID;
 public record StudentMasteryResource(
         UUID studentId,
         String email,
+        String firstName,
+        String lastName,
         UUID subtopicId,
         @Schema(description = "Mastery as a percentage 0..100; null without data")
         Double mastery,

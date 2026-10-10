@@ -23,6 +23,16 @@ public class ExternalIamService {
                 .map(StudentId::new);
     }
 
+    // Names are display data owned by iam; an unknown id yields empty names rather than failing the roster.
+    public UserName fetchUserName(UUID userId) {
+        return iamContextFacade.fetchUserSummary(userId)
+                .map(user -> new UserName(user.firstName(), user.lastName()))
+                .orElse(new UserName(null, null));
+    }
+
+    public record UserName(String firstName, String lastName) {
+    }
+
     public Optional<String> fetchUserEmail(String holderId) {
         try {
             return iamContextFacade

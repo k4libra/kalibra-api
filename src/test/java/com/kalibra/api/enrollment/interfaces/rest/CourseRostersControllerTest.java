@@ -41,7 +41,7 @@ class CourseRostersControllerTest {
 
     @Test
     void shouldListTheEnrolledStudentsGroupedByCourse() throws Exception {
-        var student = new RosterLine(UUID.randomUUID(), "ana@kalibra.pe", Instant.now());
+        var student = new RosterLine(UUID.randomUUID(), "ana@kalibra.pe", "Ana", "Pérez", Instant.now());
         var algebra = new CourseRosterGroup(UUID.randomUUID(), "Algebra", "MAT101", 1, List.of(student));
         var physics = new CourseRosterGroup(UUID.randomUUID(), "Physics", "FIS101", 0, List.of());
         when(queryService.handle(new GetEnrollmentRostersByHolderIdQuery("teacher-1"))).thenReturn(List.of(algebra, physics));

@@ -2,7 +2,7 @@
 
 Inter-session project memory. This file contains ~50 lines: summarize or remove content that no longer adds value.
 
-## Current status (2026-10-02)
+## Current status (2026-10-10)
 - The four bounded contexts (`iam`, `curriculum`, `enrollment`, `progress`) boot, migrate and validate against
   PostgreSQL 17. All 34 user stories have their backend.
 - The Adaptive Engine is wired: mastery over REST, extraction and generation over Redis streams
@@ -11,6 +11,8 @@ Inter-session project memory. This file contains ~50 lines: summarize or remove 
 - Verified end to end without credentials: every circuit over HTTP, real BKT mastery through the engine, and the
   queue round trip (task published, consumed, `502` back, material kept pending). Real extraction and generation
   were NOT exercised: they need `DEEPSEEK_API_KEY`, `MISTRAL_API_KEY` and the `R2_*` credentials.
+- KAL-39: users have first/last names (iam V4), `GET /users/me`, `GET /students/me/courses`, ADMINISTRATOR
+  analytics (`/institutional-indicators`), sign-in restricted per client application, generic users seeder.
 
 ## Decisions (and why)
 - Every engine attempt is persisted, approved or discarded; only `isAvailableToStudents()` exercises leave curriculum
@@ -26,6 +28,9 @@ Inter-session project memory. This file contains ~50 lines: summarize or remove 
 - Submitting an answer runs the engine call outside the transaction (`TransactionTemplate` only around save + publish).
   Generation is not transactional for the same reason; `saveAll` is atomic on its own.
 - Mastery values travel as percentages 0..100 in resources; `MasteryProbability` stays 0..1 in the domain.
+- ADMINISTRATOR is a decision taken outside the diagram (2026-10-10): web only, read-only platform-wide
+  aggregates, no student identity; it never holds TEACHER/STUDENT, so every other endpoint answers 403.
+- Unknown paths are `denyAll`; API docs and the seeder are opt-in env flags, never on by default.
 - Uploads are checked against the signature of their declared format before being stored (corrupt file is `415`).
 
 ## Lessons learned and mistakes to avoid
@@ -44,7 +49,6 @@ Inter-session project memory. This file contains ~50 lines: summarize or remove 
 - Set the provider keys and the R2 credentials in `.env`, then run a real upload → extraction → generation once
   and check the first Mistral/DeepSeek/R2 responses (never exercised against the live services).
 - The evolution baseline is the first posterior, not the base prior the engine reports; decide if it should be the prior.
-- Students have no endpoint to list the courses they are enrolled in; the course id only comes back when accepting
-  an invitation. Decide it in the diagram before the mobile app needs it.
+- Add `/students/me/courses`, `/users/me` and the institutional indicators to the PlantUML diagrams.
 - Push delivery (`PushReminderNotificationService`, `PushInvitationNotificationService`) still only logs.
 - `EngineTaskClient` assumes one API instance (results are acknowledged by whoever reads them).
