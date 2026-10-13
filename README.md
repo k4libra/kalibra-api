@@ -59,8 +59,10 @@ user. It includes the following features:
   decided by the Kalibra product requirements as the application evolves.
 - Student preferences: daily study reminder (enabled + time, in **UTC**) and dark mode.
   `GET /student-preferences/me` never creates anything — it answers the defaults until the
-  first `PUT`, which creates the record (idempotent upsert). Clients convert the local
-  reminder time to UTC before sending it.
+  first `PATCH /student-preferences/me`, which creates the record. Partial updates accept
+  `dailyReminderEnabled`, `dailyReminderTime` (`HH:mm` or `HH:mm:ss`, stored at minute precision)
+  and `darkMode`; omitted fields retain their values. Enabling requires a supplied or stored
+  time, otherwise it answers `400`. Clients convert the local reminder time to UTC before sending it.
 - `DailyStudyReminderJob` runs every minute (UTC) and notifies the students whose reminder
   is due through `ReminderNotificationService`. The current implementation
   (`PushReminderNotificationService`) only logs; the mobile push provider is still to be
@@ -80,6 +82,14 @@ for them. It includes the following features:
 - Create a course with its subtopics (at least one, kept in display order). A teacher only
   ever sees the courses they created: listing is scoped to the JWT `holderId`, and asking
   for another teacher's course answers `404`.
+- Rename a course or change its code with `PATCH`; add, rename, reorder, archive, restore
+  or remove its subtopics. Every course keeps at least one `ACTIVE` subtopic and contiguous
+  display orders. A subtopic with any material is `locked`: rename and removal answer `409`,
+  while archive, restore and reorder remain available. Teacher course responses include all
+  subtopics with `status` and `locked` (one material lookup per course).
+- Archived subtopics reject upload and generation with `409`, and disappear from enrolled
+  course subtopics, mastery lists, practice (`404`), gap maps and indicator subtopic lines.
+  Attempts remain stored; the ACL exposes `fetchHistoricalSubtopics` to resolve archived names.
 - Upload curricular material (PDF, PNG or JPEG) anchored to one or more subtopics of the
   course. It starts as `PENDING_INGESTION` and turns `READY` (usable to generate exercises)
   or `INGESTION_ERROR` (with its `failureReason`).
@@ -392,14 +402,14 @@ session with the wrong role answers `403`:
 - `TEACHER` only: everything under `/api/v1/courses/**`, `/api/v1/teachers/**`,
   `/api/v1/course-invitation-groups/**`, `/api/v1/course-rosters/**` and
   `/api/v1/course-exercise-catalogs/**`, plus sending, canceling and resending invitations.
-- `STUDENT` only: `PUT /api/v1/student-preferences/me/daily-reminder`, listing my pending
+- `STUDENT` only: `GET`/`PATCH /api/v1/student-preferences/me`, listing my pending
   invitations and accepting or rejecting them, and everything under
   `/api/v1/subtopic-masteries/**`, `/api/v1/practice-exercises/**` and
   `/api/v1/exercise-attempts/**`.
 - `STUDENT` or `TEACHER`: `GET /api/v1/courses/{id}/student-progress`. Without `studentId` it
   is the student's own progress and requires being enrolled (`403` otherwise); with
   `studentId` it requires owning the course (`404` otherwise).
-- Any authenticated user: reading preferences and switching dark mode.
+- Any authenticated user: reading their own profile at `GET /api/v1/users/me`.
 
 The JWT never travels in the response body or a header the client sets manually: on
 sign-in, it's set as an **httpOnly, `SameSite=Lax` cookie** (`shared/config/JwtCookieFactory`),
@@ -443,12 +453,15 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `POST` | `/api/v1/authentication/sign-out`                       | No                           |
 | `GET`  | `/api/v1/users/me`                                      | Yes (signed-in user)         |
 | `GET`  | `/api/v1/student-preferences/me`                        | `STUDENT` (own preferences)  |
-| `PUT`  | `/api/v1/student-preferences/me/daily-reminder`         | `STUDENT` (own preferences)  |
-| `PUT`  | `/api/v1/student-preferences/me/dark-mode`              | `STUDENT` (own preferences)  |
+| `PATCH` | `/api/v1/student-preferences/me`                        | `STUDENT` (own preferences)  |
 | `GET`  | `/api/v1/students/me/courses`                           | `STUDENT` (own enrollments)  |
 | `POST` | `/api/v1/courses`                                       | `TEACHER`                    |
 | `GET`  | `/api/v1/courses`                                       | `TEACHER` (own courses only) |
 | `GET`  | `/api/v1/courses/{id}`                                  | `TEACHER` (own course only)  |
+| `PATCH` | `/api/v1/courses/{id}`                                 | `TEACHER` (own course only)  |
+| `POST` | `/api/v1/courses/{id}/subtopics`                        | `TEACHER` (own course only)  |
+| `PATCH` | `/api/v1/courses/{id}/subtopics/{subtopicId}`            | `TEACHER` (own course only)  |
+| `DELETE` | `/api/v1/courses/{id}/subtopics/{subtopicId}`           | `TEACHER` (own course only)  |
 | `POST` | `/api/v1/courses/{id}/curricular-materials` (multipart) | `TEACHER` (own course only)  |
 | `GET`  | `/api/v1/courses/{id}/curricular-materials?page&size`   | `TEACHER` (own course only)  |
 | `GET`  | `/api/v1/teachers/me/workspace`                         | `TEACHER`                    |
