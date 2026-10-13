@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalCurricularExtractionService;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
@@ -17,6 +18,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularContent;
 import com.kalibra.api.curriculum.domain.model.valueobjects.IngestionStatus;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialFormat;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
 import com.kalibra.api.curriculum.domain.repositories.CurricularMaterialRepository;
 import org.junit.jupiter.api.Test;
@@ -189,5 +191,14 @@ class CurricularMaterialCommandServiceImplTest {
 
         // Assert
         verifyNoInteractions(externalCurricularExtractionService);
+    }
+
+    @Test
+    void shouldRejectArchivedMaterialUploadBeforeStorage() {
+        course.getSubtopics().getFirst().setStatus(SubtopicStatus.ARCHIVED);
+        when(courseRepository.findByIdAndHolderId(course.getId(), "teacher-1")).thenReturn(Optional.of(course));
+        assertThatThrownBy(() -> service.handle(upload(course.getSubtopics().getFirst().getId())))
+                .isInstanceOf(SubtopicArchivedException.class);
+        verifyNoInteractions(materialStorageService, curricularMaterialRepository, eventPublisher);
     }
 }

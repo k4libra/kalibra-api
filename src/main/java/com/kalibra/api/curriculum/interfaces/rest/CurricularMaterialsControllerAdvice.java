@@ -2,12 +2,16 @@ package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice(assignableTypes = CurricularMaterialsController.class)
 public class CurricularMaterialsControllerAdvice {
 
@@ -30,5 +34,9 @@ public class CurricularMaterialsControllerAdvice {
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleInvalidMaterial(IllegalArgumentException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+    @ExceptionHandler(SubtopicArchivedException.class)
+    public ProblemDetail handleSubtopicArchived(SubtopicArchivedException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
     }
 }

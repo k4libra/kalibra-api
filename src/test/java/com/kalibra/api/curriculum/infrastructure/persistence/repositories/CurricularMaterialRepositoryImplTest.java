@@ -21,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -103,5 +104,22 @@ class CurricularMaterialRepositoryImplTest {
 
         assertThat(repository.findAllByCourseIdAndSubtopicIdAndStatus(courseId, subtopicId, IngestionStatus.READY))
                 .containsExactly(material);
+    }
+
+    @Test
+    void shouldConvertLockedSubtopicIdsFromSingleCourseQuery() {
+        var courseId = new CourseId(UUID.randomUUID());
+        var id = new SubtopicId(UUID.randomUUID());
+        when(jpaRepository.findMaterialSubtopicIdsByCourseId(courseId.value())).thenReturn(Set.of(id.value()));
+        assertThat(repository.findMaterialSubtopicIdsByCourseId(courseId)).containsExactly(id);
+        verify(jpaRepository).findMaterialSubtopicIdsByCourseId(courseId.value());
+    }
+
+    @Test
+    void shouldCheckMaterialExistenceWithinCourseRegardlessOfStatus() {
+        var courseId = new CourseId(UUID.randomUUID());
+        var id = new SubtopicId(UUID.randomUUID());
+        when(jpaRepository.existsByCourseIdAndSubtopicId(courseId.value(), id.value())).thenReturn(true);
+        assertThat(repository.existsByCourseIdAndSubtopicId(courseId, id)).isTrue();
     }
 }

@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.GeneratedExerciseFixtures;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicWithoutIngestedMaterialException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.commands.CreateCourseCommand;
@@ -173,5 +174,13 @@ class GeneratedExercisesControllerTest {
                 .andExpect(status().isForbidden());
         verify(queryService, never()).handle(any(GetGeneratedExercisesByCourseQuery.class));
         verify(commandService, never()).handle(any(GenerateExercisesForSubtopicCommand.class));
+    }
+
+    @Test
+    void shouldReturn409ForArchivedSubtopic() throws Exception {
+        when(commandService.handle(any(GenerateExercisesForSubtopicCommand.class))).thenThrow(new SubtopicArchivedException());
+        mockMvc.perform(post("/api/v1/courses/{id}/generated-exercises", course.getId().value())
+                        .contentType(MediaType.APPLICATION_JSON).content(body(1)).with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
     }
 }

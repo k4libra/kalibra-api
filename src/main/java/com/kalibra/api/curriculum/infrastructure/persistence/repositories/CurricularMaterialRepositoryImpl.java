@@ -15,6 +15,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 public class CurricularMaterialRepositoryImpl implements CurricularMaterialRepository {
@@ -26,6 +28,17 @@ public class CurricularMaterialRepositoryImpl implements CurricularMaterialRepos
                                              CurricularMaterialJpaMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+    }
+
+    @Override
+    public Set<SubtopicId> findMaterialSubtopicIdsByCourseId(CourseId courseId) {
+        return jpaRepository.findMaterialSubtopicIdsByCourseId(courseId.value()).stream()
+                .map(SubtopicId::new).collect(Collectors.toSet());
+    }
+
+    @Override
+    public boolean existsByCourseIdAndSubtopicId(CourseId courseId, SubtopicId subtopicId) {
+        return jpaRepository.existsByCourseIdAndSubtopicId(courseId.value(), subtopicId.value());
     }
 
     @Override

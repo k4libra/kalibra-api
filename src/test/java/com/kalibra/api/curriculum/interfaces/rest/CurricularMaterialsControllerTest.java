@@ -1,6 +1,7 @@
 package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
@@ -17,15 +18,15 @@ import com.kalibra.api.curriculum.interfaces.rest.transform.CurricularMaterialAs
 import com.kalibra.api.shared.config.JwtAuthenticationFilter;
 import com.kalibra.api.shared.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.mockito.ArgumentCaptor;
-import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.List;
 
@@ -224,5 +225,13 @@ class CurricularMaterialsControllerTest {
                         .with(user("student-1").roles("STUDENT")))
                 .andExpect(status().isForbidden());
         verify(queryService, never()).handle(any(GetCurricularMaterialsByCourseQuery.class));
+    }
+
+    @Test
+    void shouldReturn409ForArchivedSubtopic() throws Exception {
+        when(commandService.handle(any(UploadCurricularMaterialCommand.class))).thenThrow(new SubtopicArchivedException());
+        mockMvc.perform(multipart("/api/v1/courses/{id}/curricular-materials", course.getId().value())
+                        .file(pdf).param("subtopicIds", subtopicId()).param("fileName", "unit-1.pdf").param("format", "pdf").with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
     }
 }

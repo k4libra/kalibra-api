@@ -5,8 +5,9 @@ import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.GeneratedExercise;
 import com.kalibra.api.curriculum.domain.model.commands.GenerateExerciseForStudentCommand;
 import com.kalibra.api.curriculum.domain.model.entities.ExerciseOption;
-import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
+import com.kalibra.api.curriculum.domain.model.entities.Subtopic;
 import com.kalibra.api.curriculum.domain.model.queries.GetAllCoursesQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetGeneratedExerciseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetVerificationApprovalByCourseQuery;
@@ -74,6 +75,16 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
     public List<SubtopicSummary> fetchSubtopics(UUID courseId) {
         return findCourse(courseId)
                 .map(course -> course.getSubtopics().stream()
+                        .filter(Subtopic::isActive)
+                        .map(subtopic -> new SubtopicSummary(subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder()))
+                        .toList())
+                .orElse(List.of());
+    }
+
+    @Override
+    public List<SubtopicSummary> fetchHistoricalSubtopics(UUID courseId) {
+        return findCourse(courseId)
+                .map(course -> course.getSubtopics().stream()
                         .map(subtopic -> new SubtopicSummary(
                                 subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder()))
                         .toList())
@@ -83,6 +94,9 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
     @Override
     public Optional<ExerciseSnapshot> provideExerciseForStudent(PracticeExerciseRequest request) {
         if (request == null || request.courseId() == null || request.subtopicId() == null) {
+            return Optional.empty();
+        }
+        if (findCourse(request.courseId()).filter(course -> course.hasActiveSubtopic(new SubtopicId(request.subtopicId()))).isEmpty()) {
             return Optional.empty();
         }
         var mastery = request.masteryProbability() == null

@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalExerciseGenerationService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicWithoutIngestedMaterialException;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.aggregates.GeneratedExercise;
@@ -48,6 +49,9 @@ public class GeneratedExerciseCommandServiceImpl implements GeneratedExerciseCom
         if (!course.hasSubtopic(command.subtopicId())) {
             throw new IllegalArgumentException("Subtopic does not belong to the course: " + command.subtopicId().value());
         }
+        if (!course.hasActiveSubtopic(command.subtopicId())) {
+            throw new SubtopicArchivedException();
+        }
         var context = anchorOf(command.courseId(), command.subtopicId())
                 .orElseThrow(() -> new SubtopicWithoutIngestedMaterialException(command.subtopicId().value()));
         var attempts = externalExerciseGenerationService.generate(command, context);
@@ -57,7 +61,7 @@ public class GeneratedExerciseCommandServiceImpl implements GeneratedExerciseCom
     @Override
     public Optional<GeneratedExercise> handle(GenerateExerciseForStudentCommand command) {
         var course = courseRepository.findById(command.courseId())
-                .filter(found -> found.hasSubtopic(command.subtopicId()));
+                .filter(found -> found.hasActiveSubtopic(command.subtopicId()));
         if (course.isEmpty()) {
             return Optional.empty();
         }
