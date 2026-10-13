@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.GeneratedExerciseFixtures;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalExerciseGenerationService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicWithoutIngestedMaterialException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
@@ -17,6 +18,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.IngestionStatus;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialFormat;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
 import com.kalibra.api.curriculum.domain.repositories.CurricularMaterialRepository;
 import com.kalibra.api.curriculum.domain.repositories.GeneratedExerciseRepository;
@@ -182,5 +184,21 @@ class GeneratedExerciseCommandServiceImplTest {
         assertThat(service.handle(unknownCourse)).isEmpty();
         assertThat(service.handle(foreignSubtopic)).isEmpty();
         verifyNoInteractions(externalExerciseGenerationService);
+    }
+
+    @Test
+    void shouldRejectTeacherGenerationForArchivedSubtopicBeforeCallingEngine() {
+        course.getSubtopics().getFirst().setStatus(SubtopicStatus.ARCHIVED);
+        when(courseRepository.findByIdAndHolderId(course.getId(), "teacher-1")).thenReturn(Optional.of(course));
+        assertThatThrownBy(() -> service.handle(teacherCommand)).isInstanceOf(SubtopicArchivedException.class);
+        verifyNoInteractions(curricularMaterialRepository, externalExerciseGenerationService, generatedExerciseRepository);
+    }
+
+    @Test
+    void shouldProvideNoStudentExerciseForArchivedSubtopic() {
+        course.getSubtopics().getFirst().setStatus(SubtopicStatus.ARCHIVED);
+        when(courseRepository.findById(course.getId())).thenReturn(Optional.of(course));
+        assertThat(service.handle(studentCommand)).isEmpty();
+        verifyNoInteractions(curricularMaterialRepository, externalExerciseGenerationService, generatedExerciseRepository);
     }
 }

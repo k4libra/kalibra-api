@@ -1,7 +1,7 @@
 package com.kalibra.api.iam.application.internal.queryservices;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.domain.model.queries.GetStudentPreferencesByHolderIdQuery;
 import com.kalibra.api.iam.domain.model.queries.GetStudentPreferencesWithReminderDueQuery;
 import com.kalibra.api.iam.domain.repositories.StudentPreferencesRepository;
@@ -50,7 +50,7 @@ class StudentPreferencesQueryServiceImplTest {
     void shouldReturnOnlyPreferencesWhoseReminderIsDue() {
         // Arrange
         var due = StudentPreferences.createDefaultFor("holder-due");
-        due.update(new UpdateDailyReminderCommand("holder-due", true, LocalTime.of(19, 30)));
+        due.update(new UpdateStudentPreferencesCommand("holder-due", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty()));
         var notDue = StudentPreferences.createDefaultFor("holder-not-due");
         when(studentPreferencesRepository.findAllByReminderTime(LocalTime.of(19, 30)))
                 .thenReturn(List.of(due, notDue));

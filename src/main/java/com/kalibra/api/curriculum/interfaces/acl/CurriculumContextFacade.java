@@ -23,6 +23,8 @@ public interface CurriculumContextFacade {
 
     List<SubtopicSummary> fetchSubtopics(UUID courseId);
 
+    List<SubtopicSummary> fetchHistoricalSubtopics(UUID courseId);
+
     Optional<ExerciseSnapshot> provideExerciseForStudent(PracticeExerciseRequest request);
 
     Optional<ExerciseAnswerKey> fetchAnswerKey(UUID exerciseId);

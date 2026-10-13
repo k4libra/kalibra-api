@@ -13,6 +13,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.CourseCode;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicExerciseCount;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 import com.kalibra.api.curriculum.domain.model.valueobjects.VerificationApprovalReport;
 import com.kalibra.api.curriculum.domain.services.CourseQueryService;
 import com.kalibra.api.curriculum.domain.services.GeneratedExerciseCommandService;
@@ -33,6 +34,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,6 +95,7 @@ class CurriculumContextFacadeImplTest {
 
     @Test
     void shouldProvideAnApprovedExerciseWithoutItsAnswer() {
+        when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
         // Arrange
         var approved = GeneratedExerciseFixtures.approved(course, subtopicId);
         var command = ArgumentCaptor.forClass(GenerateExerciseForStudentCommand.class);
@@ -115,6 +118,7 @@ class CurriculumContextFacadeImplTest {
 
     @Test
     void shouldNeverProvideADiscardedExerciseToAStudent() {
+        when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
         var discarded = GeneratedExerciseFixtures.discarded(course, subtopicId);
         when(generatedExerciseCommandService.handle(any(GenerateExerciseForStudentCommand.class))).thenReturn(Optional.of(discarded));
 
@@ -124,6 +128,7 @@ class CurriculumContextFacadeImplTest {
 
     @Test
     void shouldProvideNothingWhenTheSubtopicHasNoIngestedMaterial() {
+        when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
         when(generatedExerciseCommandService.handle(any(GenerateExerciseForStudentCommand.class)))
                 .thenThrow(new SubtopicWithoutIngestedMaterialException(subtopicId.value()));
 
@@ -160,5 +165,16 @@ class CurriculumContextFacadeImplTest {
         assertThat(facade.fetchVerificationStats(course.getId().value()))
                 .containsExactly(new SubtopicVerificationStats(subtopicId.value(), "Equations", 4, 3));
         assertThat(facade.fetchVerificationStats(null)).isEmpty();
+    }
+
+    @Test
+    void shouldHideArchivedSubtopicsButPreserveTheirHistoricalNames() {
+        course.getSubtopics().getFirst().setStatus(SubtopicStatus.ARCHIVED);
+        when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
+        assertThat(facade.fetchSubtopics(course.getId().value())).extracting("name").containsExactly("Inequalities");
+        assertThat(facade.fetchHistoricalSubtopics(course.getId().value())).extracting("name").containsExactly("Equations", "Inequalities");
+        assertThat(facade.provideExerciseForStudent(new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty())))
+                .isEmpty();
+        verifyNoInteractions(generatedExerciseCommandService);
     }
 }

@@ -10,8 +10,13 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface CurricularMaterialRepository {
+
+    Set<SubtopicId> findMaterialSubtopicIdsByCourseId(CourseId courseId);
+
+    boolean existsByCourseIdAndSubtopicId(CourseId courseId, SubtopicId subtopicId);
 
     CurricularMaterial save(CurricularMaterial material);
 

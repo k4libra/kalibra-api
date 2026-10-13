@@ -31,6 +31,8 @@ import com.kalibra.api.shared.contracts.enrollment.RosterEntry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -45,8 +47,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -257,7 +259,9 @@ class SubtopicMasteryQueryServiceImplTest {
     void shouldServeTheCachedGapMapWhileItCoversTheRoster() {
         var cell = new StudentMasteryCell(ana.value(), "ana@kalibra.pe", "Ana", "Pérez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
         var other = new StudentMasteryCell(luis.value(), "luis@kalibra.pe", "Ana", "Pérez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA);
-        var cached = new MasteryGapMap(courseId.value(), false, List.of(), List.of(cell, other));
+        var cached = new MasteryGapMap(courseId.value(), false, List.of(
+                new SubtopicGapLine(equations.value(), "Equations", 0, 0, 0, 0, 2, 1),
+                new SubtopicGapLine(inequalities.value(), "Inequalities", 0, 0, 0, 0, 2, 2)), List.of(cell, other));
         when(gapMapCacheService.find(courseId)).thenReturn(Optional.of(cached));
 
         assertThat(service.handle(new GetMasteryGapMapByCourseQuery(TEACHER, courseId))).isSameAs(cached);
@@ -418,5 +422,48 @@ class SubtopicMasteryQueryServiceImplTest {
     @Test
     void shouldAnswerTheGuideOfTheFourIndicators() {
         assertThat(service.handle(new GetIndicatorGuideQuery()).entries()).hasSize(4);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void shouldRebuildGapMapWhenSubtopicsAreArchivedOrRenamed(boolean archived) {
+        var stale = new MasteryGapMap(courseId.value(), false, List.of(
+                new SubtopicGapLine(equations.value(), "Equations", 0, 0, 0, 0, 2, 1),
+                new SubtopicGapLine(inequalities.value(), "Inequalities", 0, 0, 0, 0, 2, 2)),
+                List.of(new StudentMasteryCell(ana.value(), "ana@kalibra.pe", "Ana", "Perez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA),
+                        new StudentMasteryCell(luis.value(), "luis@kalibra.pe", "Luis", "Perez", equations.value(), Optional.empty(), MasteryLevel.NO_DATA)));
+        when(gapMapCacheService.find(courseId)).thenReturn(Optional.of(stale));
+        var active = archived ? List.of(new SubtopicSummary(inequalities.value(), "Inequalities", 2))
+                : List.of(new SubtopicSummary(equations.value(), "Linear equations", 1), new SubtopicSummary(inequalities.value(), "Inequalities", 2));
+        when(externalCurriculumService.fetchSubtopics(courseId)).thenReturn(active);
+        var updated = service.handle(new GetMasteryGapMapByCourseQuery(TEACHER, courseId));
+        assertThat(updated).isNotSameAs(stale);
+        assertThat(updated.subtopics()).extracting(SubtopicGapLine::subtopicName)
+                .containsExactlyElementsOf(active.stream().map(SubtopicSummary::name).toList());
+        verify(gapMapCacheService).store(updated);
+    }
+
+    @Test
+    void shouldExcludeArchivedMasteryFromGapMapAndItsDataFlag() {
+        when(externalCurriculumService.fetchSubtopics(courseId)).thenReturn(List.of(new SubtopicSummary(inequalities.value(), "Inequalities", 2)));
+        when(subtopicMasteryRepository.findAllByCourseId(courseId)).thenReturn(List.of(
+                ProgressFixtures.mastery(anaHolder, courseId, equations, 0.3, 0.7, MasteryLevel.HIGH)));
+        var map = service.handle(new GetMasteryGapMapByCourseQuery(TEACHER, courseId));
+        assertThat(map.hasSufficientData()).isFalse();
+        assertThat(map.subtopics()).extracting(SubtopicGapLine::subtopicId).containsExactly(inequalities.value());
+        assertThat(map.students()).extracting(StudentMasteryCell::subtopicId).containsOnly(inequalities.value());
+    }
+
+    @Test
+    void shouldExcludeArchivedSubtopicsFromIndicatorsAndPracticeLists() {
+        when(externalCurriculumService.fetchSubtopics(courseId)).thenReturn(List.of(new SubtopicSummary(inequalities.value(), "Inequalities", 2)));
+        when(externalCurriculumService.fetchVerificationStats(courseId)).thenReturn(List.of(
+                new SubtopicVerificationStats(equations.value(), "Equations", 5, 4),
+                new SubtopicVerificationStats(inequalities.value(), "Inequalities", 3, 2)));
+        var report = service.handle(new GetCourseIndicatorsQuery(TEACHER, courseId));
+        assertThat(report.practice().perSubtopic()).extracting("subtopicId").containsExactly(inequalities.value());
+        assertThat(report.evolution().perSubtopic()).extracting("subtopicId").containsExactly(inequalities.value());
+        assertThat(report.verification().perSubtopic()).extracting("subtopicId").containsExactly(inequalities.value());
+        assertThat(service.handle(new GetPracticeSubtopicsByCourseQuery(anaHolder, courseId))).extracting("subtopicId").containsExactly(inequalities.value());
     }
 }

@@ -1,7 +1,6 @@
 package com.kalibra.api.iam.domain.model.aggregates;
 
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.domain.model.valueobjects.DailyReminder;
 
 import java.time.LocalTime;
@@ -30,12 +29,14 @@ public class StudentPreferences {
         return new StudentPreferences(holderId);
     }
 
-    public void update(UpdateDailyReminderCommand command) {
-        this.dailyReminder = new DailyReminder(command.enabled(), command.time());
-    }
-
-    public void update(UpdateDarkModeCommand command) {
-        this.darkMode = command.enabled();
+    public void update(UpdateStudentPreferencesCommand command) {
+        var enabled = command.dailyReminderEnabled().orElse(dailyReminder.enabled());
+        var time = command.dailyReminderTime().orElse(dailyReminder.time());
+        if (enabled && time == null) {
+            throw new IllegalArgumentException("A daily reminder needs a time when it is enabled");
+        }
+        this.dailyReminder = new DailyReminder(enabled, time);
+        command.darkMode().ifPresent(value -> this.darkMode = value);
     }
 
     public boolean isReminderDue(LocalTime now) {

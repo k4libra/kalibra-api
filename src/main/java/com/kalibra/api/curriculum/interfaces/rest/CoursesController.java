@@ -1,13 +1,19 @@
 package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotFoundException;
+import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetLockedSubtopicIdsByCourseQuery;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.domain.services.CourseCommandService;
 import com.kalibra.api.curriculum.domain.services.CourseQueryService;
+import com.kalibra.api.curriculum.interfaces.rest.resources.AddSubtopicResource;
 import com.kalibra.api.curriculum.interfaces.rest.resources.CourseResource;
 import com.kalibra.api.curriculum.interfaces.rest.resources.CreateCourseResource;
+import com.kalibra.api.curriculum.interfaces.rest.resources.UpdateCourseResource;
+import com.kalibra.api.curriculum.interfaces.rest.resources.UpdateSubtopicResource;
 import com.kalibra.api.curriculum.interfaces.rest.transform.CourseAssembler;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -20,7 +26,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -60,7 +68,7 @@ public class CoursesController {
     public ResponseEntity<CourseResource> create(@Valid @RequestBody CreateCourseResource resource,
                                                  Authentication authentication) {
         var course = commandService.handle(assembler.toCommand(resource, authentication.getName()));
-        return new ResponseEntity<>(assembler.toResource(course), HttpStatus.CREATED);
+        return new ResponseEntity<>(toResource(course, authentication.getName()), HttpStatus.CREATED);
     }
 
     @Operation(summary = "List my courses", description = "Returns only the courses created by the authenticated teacher.")
@@ -72,7 +80,7 @@ public class CoursesController {
     @GetMapping
     public ResponseEntity<List<CourseResource>> getAll(Authentication authentication) {
         var courses = queryService.handle(new GetCoursesByHolderIdQuery(authentication.getName()));
-        return ResponseEntity.ok(courses.stream().map(assembler::toResource).toList());
+        return ResponseEntity.ok(courses.stream().map(course -> toResource(course, authentication.getName())).toList());
     }
 
     @Operation(summary = "Get one of my courses", description = "Returns the course with its subtopics when it belongs to the authenticated teacher.")
@@ -87,6 +95,46 @@ public class CoursesController {
         var course = queryService.handle(new GetCourseByIdQuery(new CourseId(id)))
                 .filter(found -> found.isOwnedBy(authentication.getName()))
                 .orElseThrow(() -> new CourseNotFoundException(id));
-        return ResponseEntity.ok(assembler.toResource(course));
+        return ResponseEntity.ok(toResource(course, authentication.getName()));
+    }
+    @Operation(summary = "Update one of my courses")
+    @PatchMapping("/{courseId}")
+    public ResponseEntity<CourseResource> update(@PathVariable UUID courseId,
+                                                @Valid @RequestBody UpdateCourseResource resource,
+                                                Authentication authentication) {
+        var course = commandService.handle(assembler.toCommand(resource, new CourseId(courseId), authentication.getName()));
+        return ResponseEntity.ok(toResource(course, authentication.getName()));
+    }
+
+    @Operation(summary = "Add an active subtopic to one of my courses")
+    @PostMapping("/{courseId}/subtopics")
+    public ResponseEntity<CourseResource> addSubtopic(@PathVariable UUID courseId,
+                                                    @Valid @RequestBody AddSubtopicResource resource,
+                                                    Authentication authentication) {
+        var course = commandService.handle(assembler.toCommand(resource, new CourseId(courseId), authentication.getName()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResource(course, authentication.getName()));
+    }
+
+    @Operation(summary = "Rename, reorder, archive or restore a subtopic")
+    @PatchMapping("/{courseId}/subtopics/{subtopicId}")
+    public ResponseEntity<CourseResource> updateSubtopic(@PathVariable UUID courseId, @PathVariable UUID subtopicId,
+                                                       @Valid @RequestBody UpdateSubtopicResource resource,
+                                                       Authentication authentication) {
+        var course = commandService.handle(assembler.toCommand(resource, new CourseId(courseId),
+                new SubtopicId(subtopicId), authentication.getName()));
+        return ResponseEntity.ok(toResource(course, authentication.getName()));
+    }
+
+    @Operation(summary = "Remove an unlocked subtopic")
+    @DeleteMapping("/{courseId}/subtopics/{subtopicId}")
+    public ResponseEntity<Void> removeSubtopic(@PathVariable UUID courseId, @PathVariable UUID subtopicId,
+                                             Authentication authentication) {
+        commandService.handle(assembler.toCommand(new CourseId(courseId), new SubtopicId(subtopicId), authentication.getName()));
+        return ResponseEntity.noContent().build();
+    }
+
+    private CourseResource toResource(Course course, String holderId) {
+        var locked = queryService.handle(new GetLockedSubtopicIdsByCourseQuery(course.getId(), holderId));
+        return assembler.toResource(course, locked);
     }
 }

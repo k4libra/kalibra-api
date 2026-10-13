@@ -1,12 +1,14 @@
 package com.kalibra.api.curriculum.domain.model.entities;
 
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 
 public class Subtopic {
 
     private SubtopicId id;
     private String name;
     private int displayOrder;
+    private SubtopicStatus status = SubtopicStatus.ACTIVE;
 
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public Subtopic() {
@@ -19,6 +21,18 @@ public class Subtopic {
         this.id = id;
         this.name = name.trim();
         this.displayOrder = displayOrder;
+    }
+
+    public boolean isActive() {
+        return status == SubtopicStatus.ACTIVE;
+    }
+
+    public SubtopicStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(SubtopicStatus status) {
+        this.status = status;
     }
 
     public SubtopicId getId() {

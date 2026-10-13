@@ -1,8 +1,7 @@
 package com.kalibra.api.iam.application.internal.commandservices;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.domain.repositories.StudentPreferencesRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +30,7 @@ class StudentPreferencesCommandServiceImplTest {
     @Test
     void shouldCreatePreferencesWhenUpdatingDailyReminderOfAHolderWithoutThem() {
         // Arrange
-        var command = new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(19, 30));
+        var command = new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty());
         var captor = ArgumentCaptor.forClass(StudentPreferences.class);
         when(studentPreferencesRepository.findByHolderId("holder-123")).thenReturn(Optional.empty());
         when(studentPreferencesRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -50,7 +49,7 @@ class StudentPreferencesCommandServiceImplTest {
     void shouldUpdateDailyReminderOfExistingPreferences() {
         // Arrange
         var existing = StudentPreferences.createDefaultFor("holder-123");
-        var command = new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(7, 0));
+        var command = new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(7, 0)), Optional.empty());
         when(studentPreferencesRepository.findByHolderId("holder-123")).thenReturn(Optional.of(existing));
         when(studentPreferencesRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -70,7 +69,7 @@ class StudentPreferencesCommandServiceImplTest {
         when(studentPreferencesRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        var result = service.handle(new UpdateDarkModeCommand("holder-123", true));
+        var result = service.handle(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(true)));
 
         // Assert
         assertThat(result.isDarkMode()).isTrue();
@@ -83,7 +82,7 @@ class StudentPreferencesCommandServiceImplTest {
         when(studentPreferencesRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        var result = service.handle(new UpdateDarkModeCommand("holder-123", true));
+        var result = service.handle(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(true)));
 
         // Assert
         assertThat(result.getHolderId()).isEqualTo("holder-123");

@@ -128,14 +128,15 @@ public class SubtopicMasteryQueryServiceImpl
     public MasteryGapMap handle(GetMasteryGapMapByCourseQuery query) {
         requireOwnership(query.holderId(), query.courseId());
         var roster = externalEnrollmentService.fetchRosterEntries(query.courseId());
-        // Self-healing: a cached map is only served while it still covers the current roster.
+        // Self-healing: cached maps must match the current roster and active subtopic names.
+        var subtopics = externalCurriculumService.fetchSubtopics(query.courseId());
         var cached = gapMapCacheService
                 .find(query.courseId())
-                .filter(map -> coversRoster(map, roster));
+                .filter(map -> coversRoster(map, roster) && coversSubtopics(map, subtopics));
         if (cached.isPresent()) {
             return cached.get();
         }
-        var map = gapMapOf(query.courseId(), roster);
+        var map = gapMapOf(query.courseId(), roster, subtopics);
         gapMapCacheService.store(map);
         return map;
     }
@@ -154,7 +155,7 @@ public class SubtopicMasteryQueryServiceImpl
                 complete(calculated.accuracy(), roster),
                 complete(calculated.practice(), subtopics, roster),
                 complete(calculated.evolution(), subtopics),
-                verificationOf(externalCurriculumService.fetchVerificationStats(query.courseId()))
+                verificationOf(externalCurriculumService.fetchVerificationStats(query.courseId()), subtopics)
         );
     }
 
@@ -281,10 +282,20 @@ public class SubtopicMasteryQueryServiceImpl
         return cachedStudents.equals(enrolled);
     }
 
-    private MasteryGapMap gapMapOf(CourseId courseId, List<RosterEntry> roster) {
+    private boolean coversSubtopics(MasteryGapMap map, List<SubtopicSummary> subtopics) {
+        var cached = map.subtopics().stream()
+                .collect(Collectors.toMap(SubtopicGapLine::subtopicId, SubtopicGapLine::subtopicName));
+        var current = subtopics.stream()
+                .collect(Collectors.toMap(SubtopicSummary::subtopicId, SubtopicSummary::name));
+        return cached.equals(current);
+    }
+
+    private MasteryGapMap gapMapOf(CourseId courseId, List<RosterEntry> roster, List<SubtopicSummary> subtopics) {
         var students = roster.stream().map(entry -> new StudentId(entry.studentId())).toList();
-        var analyzed = masteryGapAnalyzer.analyze(subtopicMasteryRepository.findAllByCourseId(courseId), students);
-        var subtopics = externalCurriculumService.fetchSubtopics(courseId);
+        var activeIds = subtopics.stream().map(SubtopicSummary::subtopicId).collect(Collectors.toSet());
+        var masteries = subtopicMasteryRepository.findAllByCourseId(courseId).stream()
+                .filter(mastery -> activeIds.contains(mastery.getSubtopicId().value())).toList();
+        var analyzed = masteryGapAnalyzer.analyze(masteries, students);
         Map<UUID, SubtopicSummary> known = subtopics.stream()
                 .collect(Collectors.toMap(SubtopicSummary::subtopicId, Function.identity(), (first, second) -> first));
         Map<UUID, RosterEntry> rosterEntries = rosterById(roster);
@@ -381,11 +392,12 @@ public class SubtopicMasteryQueryServiceImpl
                 evolution.groupDeltaPoints(), lines);
     }
 
-    private VerificationIndicator verificationOf(List<SubtopicVerificationStats> stats) {
+    private VerificationIndicator verificationOf(List<SubtopicVerificationStats> stats, List<SubtopicSummary> subtopics) {
+        var activeIds = subtopics.stream().map(SubtopicSummary::subtopicId).collect(Collectors.toSet());
         var generated = stats.stream().mapToInt(SubtopicVerificationStats::generated).sum();
         var approved = stats.stream().mapToInt(SubtopicVerificationStats::approved).sum();
         var lines = stats.stream()
-                .filter(subtopic -> subtopic.generated() > 0)
+                .filter(subtopic -> subtopic.generated() > 0 && activeIds.contains(subtopic.subtopicId()))
                 .map(subtopic -> new SubtopicApprovalLine(subtopic.subtopicId(), subtopic.subtopicName(),
                         CourseIndicatorsCalculator.percentage(subtopic.approved(), subtopic.generated())))
                 .toList();

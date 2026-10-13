@@ -1,9 +1,11 @@
 package com.kalibra.api.shared.interfaces.rest;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import com.kalibra.api.shared.engine.EngineTaskFailedException;
 import com.kalibra.api.shared.engine.EngineUnavailableException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 // specific handler anywhere (this class, or a module's own ControllerAdvice) fall
 // through to the generic 500 below. Keeps the response body generic — never the
 // exception message or stack trace — while the real cause is logged server-side.
+@Order(Ordered.LOWEST_PRECEDENCE)
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 

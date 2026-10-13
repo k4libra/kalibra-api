@@ -1,8 +1,7 @@
 package com.kalibra.api.iam.interfaces.rest;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.domain.model.queries.GetStudentPreferencesByHolderIdQuery;
 import com.kalibra.api.iam.domain.services.StudentPreferencesCommandService;
 import com.kalibra.api.iam.domain.services.StudentPreferencesQueryService;
@@ -10,6 +9,8 @@ import com.kalibra.api.iam.interfaces.rest.transform.StudentPreferencesAssembler
 import com.kalibra.api.shared.config.JwtAuthenticationFilter;
 import com.kalibra.api.shared.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -22,11 +23,13 @@ import java.time.LocalTime;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,8 +52,8 @@ class StudentPreferencesControllerTest {
     void shouldReturnStoredPreferencesWhenAuthenticated() throws Exception {
         // Arrange
         var preferences = StudentPreferences.createDefaultFor("holder-123");
-        preferences.update(new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(19, 30)));
-        preferences.update(new UpdateDarkModeCommand("holder-123", true));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty()));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(true)));
         when(queryService.handle(new GetStudentPreferencesByHolderIdQuery("holder-123")))
                 .thenReturn(Optional.of(preferences));
 
@@ -73,8 +76,7 @@ class StudentPreferencesControllerTest {
                 .andExpect(jsonPath("$.dailyReminderEnabled").value(false))
                 .andExpect(jsonPath("$.dailyReminderTime").doesNotExist())
                 .andExpect(jsonPath("$.darkMode").value(false));
-        verify(commandService, never()).handle(any(UpdateDailyReminderCommand.class));
-        verify(commandService, never()).handle(any(UpdateDarkModeCommand.class));
+        verify(commandService, never()).handle(any(UpdateStudentPreferencesCommand.class));
     }
 
     @Test
@@ -87,15 +89,15 @@ class StudentPreferencesControllerTest {
     void shouldUpdateDailyReminderOfTheAuthenticatedHolder() throws Exception {
         // Arrange
         var updated = StudentPreferences.createDefaultFor("holder-123");
-        var command = new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(19, 30));
+        var command = new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty());
         updated.update(command);
         when(commandService.handle(command)).thenReturn(updated);
 
         // Act & Assert
-        mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
+        mockMvc.perform(patch("/api/v1/student-preferences/me")
                         .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true,\"time\":\"19:30\"}"))
+                        .content("{\"dailyReminderEnabled\":true,\"dailyReminderTime\":\"19:30\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dailyReminderEnabled").value(true))
                 .andExpect(jsonPath("$.dailyReminderTime").value("19:30:00"));
@@ -103,10 +105,12 @@ class StudentPreferencesControllerTest {
 
     @Test
     void shouldReturnBadRequestWhenEnablingReminderWithoutTime() throws Exception {
-        mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
+        when(commandService.handle(any(UpdateStudentPreferencesCommand.class)))
+                .thenThrow(new IllegalArgumentException("A daily reminder needs a time when it is enabled"));
+        mockMvc.perform(patch("/api/v1/student-preferences/me")
                         .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true}"))
+                        .content("{\"dailyReminderEnabled\":true}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -114,34 +118,72 @@ class StudentPreferencesControllerTest {
     void shouldUpdateDarkModeOfTheAuthenticatedHolder() throws Exception {
         // Arrange
         var updated = StudentPreferences.createDefaultFor("holder-123");
-        var command = new UpdateDarkModeCommand("holder-123", true);
+        var command = new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(true));
         updated.update(command);
         when(commandService.handle(command)).thenReturn(updated);
 
         // Act & Assert
-        mockMvc.perform(put("/api/v1/student-preferences/me/dark-mode")
+        mockMvc.perform(patch("/api/v1/student-preferences/me")
                         .with(user("holder-123").roles("STUDENT"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true}"))
+                        .content("{\"darkMode\":true}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.darkMode").value(true));
     }
 
     @Test
     void shouldRejectUpdateWhenNotAuthenticated() throws Exception {
-        mockMvc.perform(put("/api/v1/student-preferences/me/dark-mode")
+        mockMvc.perform(patch("/api/v1/student-preferences/me")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true}"))
+                        .content("{\"darkMode\":true}"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
     void shouldForbidTheDailyReminderToTeachers() throws Exception {
-        mockMvc.perform(put("/api/v1/student-preferences/me/daily-reminder")
+        mockMvc.perform(patch("/api/v1/student-preferences/me")
                         .with(user("teacher-1").roles("TEACHER"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"enabled\":true,\"time\":\"19:30\"}"))
+                        .content("{\"dailyReminderEnabled\":true,\"dailyReminderTime\":\"19:30\"}"))
                 .andExpect(status().isForbidden());
-        verify(commandService, never()).handle(any(UpdateDailyReminderCommand.class));
+        verify(commandService, never()).handle(any(UpdateStudentPreferencesCommand.class));
+    }
+
+    @Test
+    void shouldMapFalseAndAbsentFieldsIndependently() throws Exception {
+        var preferences = StudentPreferences.createDefaultFor("holder-123");
+        when(commandService.handle(any(UpdateStudentPreferencesCommand.class))).thenReturn(preferences);
+        mockMvc.perform(patch("/api/v1/student-preferences/me").with(user("holder-123").roles("STUDENT"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"dailyReminderEnabled\":false,\"darkMode\":false}"))
+                .andExpect(status().isOk());
+        verify(commandService).handle(argThat((UpdateStudentPreferencesCommand command) -> command.dailyReminderEnabled().equals(Optional.of(false))
+                && command.darkMode().equals(Optional.of(false)) && command.dailyReminderTime().isEmpty()));
+    }
+
+    @Test
+    void shouldAcceptSecondsInReminderTime() throws Exception {
+        var command = new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30, 45)), Optional.empty());
+        var updated = StudentPreferences.createDefaultFor("holder-123");
+        updated.update(command);
+        when(commandService.handle(command)).thenReturn(updated);
+        mockMvc.perform(patch("/api/v1/student-preferences/me").with(user("holder-123").roles("STUDENT"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"dailyReminderEnabled\":true,\"dailyReminderTime\":\"19:30:45\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.dailyReminderTime").value("19:30:00"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"25:00", "19:30:30.123", "nonsense"})
+    void shouldRejectMalformedReminderTime(String time) throws Exception {
+        mockMvc.perform(patch("/api/v1/student-preferences/me").with(user("holder-123").roles("STUDENT"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"dailyReminderTime\":\"" + time + "\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"daily-reminder", "dark-mode"})
+    void shouldRemoveObsoletePutEndpoints(String path) throws Exception {
+        mockMvc.perform(put("/api/v1/student-preferences/me/" + path).with(user("holder-123").roles("STUDENT"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}"))
+                .andExpect(status().isNotFound());
     }
 }

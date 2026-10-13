@@ -5,15 +5,8 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DailyReminderTest {
-
-    @Test
-    void shouldRejectEnabledReminderWithoutTime() {
-        assertThatThrownBy(() -> new DailyReminder(true, null))
-                .isInstanceOf(IllegalArgumentException.class);
-    }
 
     @Test
     void shouldAllowDisabledReminderWithoutTime() {
