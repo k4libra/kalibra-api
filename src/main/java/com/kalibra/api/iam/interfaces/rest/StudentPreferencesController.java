@@ -1,13 +1,12 @@
 package com.kalibra.api.iam.interfaces.rest;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
+import com.kalibra.api.iam.domain.model.queries.GetStudentPreferencesByHolderIdQuery;
 import com.kalibra.api.iam.domain.services.StudentPreferencesCommandService;
 import com.kalibra.api.iam.domain.services.StudentPreferencesQueryService;
 import com.kalibra.api.iam.interfaces.rest.resources.StudentPreferencesResource;
-import com.kalibra.api.iam.interfaces.rest.resources.UpdateDailyReminderResource;
-import com.kalibra.api.iam.interfaces.rest.resources.UpdateDarkModeResource;
+import com.kalibra.api.iam.interfaces.rest.resources.UpdateStudentPreferencesResource;
 import com.kalibra.api.iam.interfaces.rest.transform.StudentPreferencesAssembler;
-
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -18,9 +17,8 @@ import jakarta.validation.Valid;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import com.kalibra.api.iam.domain.model.queries.GetStudentPreferencesByHolderIdQuery;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,34 +55,16 @@ public class StudentPreferencesController {
         return ResponseEntity.ok(assembler.toResource(preferences));
     }
 
-    @Operation(summary = "Update my daily study reminder",
-            description = "Enables or disables the daily reminder. The time is in UTC and is required when enabled. "
-                    + "Creates the preferences on first use.")
+    @Operation(summary = "Update my preferences", description = "Updates the supplied fields. Reminder time is in UTC; enabling requires a supplied or stored time.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Preferences after the update"),
-            @ApiResponse(responseCode = "400", description = "Reminder enabled without a time, or malformed time",
-                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
+            @ApiResponse(responseCode = "200", description = "Updated preferences"),
+            @ApiResponse(responseCode = "400", description = "Invalid preferences", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content),
             @ApiResponse(responseCode = "403", description = "The authenticated user is not a student", content = @Content)
     })
-    @PutMapping("/daily-reminder")
-    public ResponseEntity<StudentPreferencesResource> updateDailyReminder(
-            @Valid @RequestBody UpdateDailyReminderResource resource, Authentication authentication) {
-        var command = assembler.toCommand(resource, authentication.getName());
-        return ResponseEntity.ok(assembler.toResource(commandService.handle(command)));
-    }
-
-    @Operation(summary = "Update my dark mode",
-            description = "Stores the dark mode preference. Creates the preferences on first use.")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Preferences after the update"),
-            @ApiResponse(responseCode = "400", description = "Malformed request",
-                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
-            @ApiResponse(responseCode = "401", description = "Missing or invalid JWT cookie", content = @Content)
-    })
-    @PutMapping("/dark-mode")
-    public ResponseEntity<StudentPreferencesResource> updateDarkMode(
-            @Valid @RequestBody UpdateDarkModeResource resource, Authentication authentication) {
+    @PatchMapping
+    public ResponseEntity<StudentPreferencesResource> update(
+            @Valid @RequestBody UpdateStudentPreferencesResource resource, Authentication authentication) {
         var command = assembler.toCommand(resource, authentication.getName());
         return ResponseEntity.ok(assembler.toResource(commandService.handle(command)));
     }

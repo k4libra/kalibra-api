@@ -1,8 +1,7 @@
 package com.kalibra.api.iam.application.internal.commandservices;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.domain.repositories.StudentPreferencesRepository;
 import com.kalibra.api.iam.domain.services.StudentPreferencesCommandService;
 import org.springframework.stereotype.Service;
@@ -19,16 +18,7 @@ public class StudentPreferencesCommandServiceImpl implements StudentPreferencesC
 
     @Override
     @Transactional
-    public StudentPreferences handle(UpdateDailyReminderCommand command) {
-        var preferences = studentPreferencesRepository.findByHolderId(command.holderId())
-                .orElseGet(() -> StudentPreferences.createDefaultFor(command.holderId()));
-        preferences.update(command);
-        return studentPreferencesRepository.save(preferences);
-    }
-
-    @Override
-    @Transactional
-    public StudentPreferences handle(UpdateDarkModeCommand command) {
+    public StudentPreferences handle(UpdateStudentPreferencesCommand command) {
         var preferences = studentPreferencesRepository.findByHolderId(command.holderId())
                 .orElseGet(() -> StudentPreferences.createDefaultFor(command.holderId()));
         preferences.update(command);

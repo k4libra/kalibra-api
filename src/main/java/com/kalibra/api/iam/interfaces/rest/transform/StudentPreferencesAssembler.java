@@ -1,25 +1,27 @@
 package com.kalibra.api.iam.interfaces.rest.transform;
 
 import com.kalibra.api.iam.domain.model.aggregates.StudentPreferences;
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import com.kalibra.api.iam.interfaces.rest.resources.StudentPreferencesResource;
-import com.kalibra.api.iam.interfaces.rest.resources.UpdateDailyReminderResource;
-import com.kalibra.api.iam.interfaces.rest.resources.UpdateDarkModeResource;
+import com.kalibra.api.iam.interfaces.rest.resources.UpdateStudentPreferencesResource;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+
+import java.time.LocalTime;
+import java.util.Optional;
 
 @Mapper(componentModel = "spring")
 public interface StudentPreferencesAssembler {
 
-    @Mapping(target = "holderId", source = "holderId")
-    @Mapping(target = "enabled", source = "resource.enabled")
-    @Mapping(target = "time", source = "resource.time")
-    UpdateDailyReminderCommand toCommand(UpdateDailyReminderResource resource, String holderId);
+    UpdateStudentPreferencesCommand toCommand(UpdateStudentPreferencesResource resource, String holderId);
 
-    @Mapping(target = "holderId", source = "holderId")
-    @Mapping(target = "enabled", source = "resource.enabled")
-    UpdateDarkModeCommand toCommand(UpdateDarkModeResource resource, String holderId);
+    default Optional<Boolean> toOptionalBoolean(Boolean value) {
+        return Optional.ofNullable(value);
+    }
+
+    default Optional<LocalTime> toOptionalTime(LocalTime value) {
+        return Optional.ofNullable(value);
+    }
 
     @Mapping(target = "dailyReminderEnabled", source = "preferences.dailyReminder.enabled")
     @Mapping(target = "dailyReminderTime", source = "preferences.dailyReminder.time")

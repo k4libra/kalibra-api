@@ -1,12 +1,13 @@
 package com.kalibra.api.iam.domain.model.aggregates;
 
-import com.kalibra.api.iam.domain.model.commands.UpdateDailyReminderCommand;
-import com.kalibra.api.iam.domain.model.commands.UpdateDarkModeCommand;
+import com.kalibra.api.iam.domain.model.commands.UpdateStudentPreferencesCommand;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalTime;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StudentPreferencesTest {
 
@@ -29,7 +30,7 @@ class StudentPreferencesTest {
         var preferences = StudentPreferences.createDefaultFor("holder-123");
 
         // Act
-        preferences.update(new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(19, 30)));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty()));
 
         // Assert
         assertThat(preferences.getDailyReminder().enabled()).isTrue();
@@ -42,7 +43,7 @@ class StudentPreferencesTest {
         var preferences = StudentPreferences.createDefaultFor("holder-123");
 
         // Act
-        preferences.update(new UpdateDarkModeCommand("holder-123", true));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(true)));
 
         // Assert
         assertThat(preferences.isDarkMode()).isTrue();
@@ -52,7 +53,7 @@ class StudentPreferencesTest {
     void shouldBeDueOnlyAtTheReminderMinuteWhenEnabled() {
         // Arrange
         var preferences = StudentPreferences.createDefaultFor("holder-123");
-        preferences.update(new UpdateDailyReminderCommand("holder-123", true, LocalTime.of(19, 30)));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.empty()));
 
         // Act & Assert
         assertThat(preferences.isReminderDue(LocalTime.of(19, 30, 45))).isTrue();
@@ -63,9 +64,44 @@ class StudentPreferencesTest {
     void shouldNeverBeDueWhenReminderIsDisabled() {
         // Arrange
         var preferences = StudentPreferences.createDefaultFor("holder-123");
-        preferences.update(new UpdateDailyReminderCommand("holder-123", false, LocalTime.of(19, 30)));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(false), Optional.of(LocalTime.of(19, 30)), Optional.empty()));
 
         // Act & Assert
         assertThat(preferences.isReminderDue(LocalTime.of(19, 30))).isFalse();
+    }
+
+    @Test
+    void shouldRejectEnablingWithoutTimeBeforeChangingDarkMode() {
+        var preferences = StudentPreferences.createDefaultFor("holder-123");
+        assertThatThrownBy(() -> preferences.update(new UpdateStudentPreferencesCommand("holder-123",
+                Optional.of(true), Optional.empty(), Optional.of(true))))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(preferences.isDarkMode()).isFalse();
+        assertThat(preferences.getDailyReminder().enabled()).isFalse();
+    }
+
+    @Test
+    void shouldEnableWithStoredTimeAndPreserveOmittedPreferences() {
+        var preferences = StudentPreferences.createDefaultFor("holder-123");
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(),
+                Optional.of(LocalTime.of(7, 15, 30)), Optional.of(true)));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.empty(), Optional.empty()));
+        assertThat(preferences.getDailyReminder().enabled()).isTrue();
+        assertThat(preferences.getDailyReminder().time()).isEqualTo(LocalTime.of(7, 15));
+        assertThat(preferences.isDarkMode()).isTrue();
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.of(false)));
+        assertThat(preferences.isDarkMode()).isFalse();
+        assertThat(preferences.getDailyReminder().enabled()).isTrue();
+    }
+
+    @Test
+    void shouldPreserveTimeWhenDisablingAndTreatEmptyPatchAsNoOp() {
+        var preferences = StudentPreferences.createDefaultFor("holder-123");
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(true), Optional.of(LocalTime.of(19, 30)), Optional.of(true)));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.of(false), Optional.empty(), Optional.empty()));
+        preferences.update(new UpdateStudentPreferencesCommand("holder-123", Optional.empty(), Optional.empty(), Optional.empty()));
+        assertThat(preferences.getDailyReminder().enabled()).isFalse();
+        assertThat(preferences.getDailyReminder().time()).isEqualTo(LocalTime.of(19, 30));
+        assertThat(preferences.isDarkMode()).isTrue();
     }
 }
