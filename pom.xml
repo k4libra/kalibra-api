@@ -64,11 +64,6 @@
             <version>4.0.0</version>
         </dependency>
 
-        <!-- Adaptive engine task queue and gap-map cache -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
         <!-- Cloudflare R2 (S3-compatible) for the curricular material -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
