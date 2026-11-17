@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.infrastructure.persistence.repositories;
 
 import com.kalibra.api.curriculum.domain.model.aggregates.GeneratedExercise;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.DifficultyLevel;
 import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.GeneratedExercisePage;
 import com.kalibra.api.curriculum.domain.model.valueobjects.Pagination;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Repository
 public class GeneratedExerciseRepositoryImpl implements GeneratedExerciseRepository {
@@ -43,6 +46,26 @@ public class GeneratedExerciseRepositoryImpl implements GeneratedExerciseReposit
     @Override
     public Optional<GeneratedExercise> findById(ExerciseId id) {
         return jpaRepository.findById(id.value()).map(mapper::toDomain);
+    }
+
+    @Override
+    public Optional<GeneratedExercise> findAvailableForStudent(CourseId courseId, SubtopicId subtopicId,
+                                                              DifficultyLevel difficulty, Set<ExerciseId> excluded) {
+        return jpaRepository.findAvailableForStudent(courseId.value(), subtopicId.value(), difficulty.name(),
+                        exclusionIds(excluded), excluded.isEmpty(), PageRequest.of(0, 1)).stream()
+                .findFirst().map(mapper::toDomain);
+    }
+
+    @Override
+    public long countAvailableForStudent(CourseId courseId, SubtopicId subtopicId,
+                                         DifficultyLevel difficulty, Set<ExerciseId> excluded) {
+        return jpaRepository.countAvailableForStudent(courseId.value(), subtopicId.value(), difficulty.name(),
+                exclusionIds(excluded), excluded.isEmpty());
+    }
+
+    private List<UUID> exclusionIds(Set<ExerciseId> excluded) {
+        // Keep NOT IN non-empty even when its predicate is disabled, for portable SQL binding.
+        return excluded.isEmpty() ? List.of(new UUID(0, 0)) : excluded.stream().map(ExerciseId::value).toList();
     }
 
     @Override
