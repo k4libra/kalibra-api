@@ -63,6 +63,8 @@ public class CurricularMaterialsController {
                     + "It starts as PENDING_INGESTION and becomes READY or INGESTION_ERROR once processed.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Material registered, pending ingestion"),
+            @ApiResponse(responseCode = "503", description = "Material upload is temporarily unavailable",
+                    content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "400",
                     description = "Empty file, missing fields or a subtopic that does not belong to the course", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "404", description = "The course does not exist or belongs to another teacher", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),

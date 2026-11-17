@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.MaterialUploadUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import org.springframework.core.Ordered;
@@ -23,6 +24,13 @@ public class CurricularMaterialsControllerAdvice {
     @ExceptionHandler(CourseNotOwnedByTeacherException.class)
     public ProblemDetail handleCourseNotOwnedByTeacher(CourseNotOwnedByTeacherException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(MaterialUploadUnavailableException.class)
+    public ProblemDetail handleMaterialUploadUnavailable(MaterialUploadUnavailableException ex) {
+        var problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setProperty("code", "MATERIAL_UPLOAD_UNAVAILABLE");
+        return problem;
     }
 
     @ExceptionHandler(MaterialStorageUnavailableException.class)

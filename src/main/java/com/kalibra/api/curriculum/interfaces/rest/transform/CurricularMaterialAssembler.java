@@ -3,13 +3,16 @@ package com.kalibra.api.curriculum.interfaces.rest.transform;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.commands.UploadCurricularMaterialCommand;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularExtractionAvailability;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularMaterialPage;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialFormat;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.interfaces.rest.resources.CurricularExtractionAvailabilityResource;
 import com.kalibra.api.curriculum.interfaces.rest.resources.CurricularMaterialPageResource;
 import com.kalibra.api.curriculum.interfaces.rest.resources.CurricularMaterialResource;
 import com.kalibra.api.curriculum.interfaces.rest.resources.UploadCurricularMaterialResource;
+
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
@@ -18,6 +21,8 @@ import java.util.UUID;
 
 @Mapper(componentModel = "spring")
 public interface CurricularMaterialAssembler {
+
+    CurricularExtractionAvailabilityResource toResource(CurricularExtractionAvailability availability);
 
     @Mapping(target = "holderId", source = "holderId")
     @Mapping(target = "courseId", source = "courseId")
@@ -32,10 +37,16 @@ public interface CurricularMaterialAssembler {
 
     @Mapping(target = "fileName", source = "file.fileName")
     @Mapping(target = "format", source = "file.format")
+    @Mapping(target = "sizeBytes", source = "file.sizeBytes")
+    @Mapping(target = "pageCount", source = "content")
     CurricularMaterialResource toResource(CurricularMaterial material);
 
     @Mapping(target = "content", source = "items")
     CurricularMaterialPageResource toResource(CurricularMaterialPage page);
+
+    default Integer toPageCount(Optional<com.kalibra.api.curriculum.domain.model.valueobjects.CurricularContent> content) {
+        return content == null ? null : content.map(value -> value.pageCount()).orElse(null);
+    }
 
     // required by MapStruct: VOs, Optional fields and the format need explicit converters.
     default MaterialFormat toFormat(String value) {

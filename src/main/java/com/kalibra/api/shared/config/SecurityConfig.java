@@ -51,6 +51,8 @@ public class SecurityConfig {
                         // before the /courses/** rule: a student reads their own progress under that prefix
                         .requestMatchers(HttpMethod.GET, "/api/v1/courses/*/student-progress")
                                 .hasAnyAuthority("ROLE_STUDENT", "ROLE_TEACHER")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/curricular-extraction-availability")
+                                .hasAuthority("ROLE_TEACHER")
                         .requestMatchers("/api/v1/courses/**", "/api/v1/teachers/**", "/api/v1/course-exercise-catalogs/**")
                                 .hasAuthority("ROLE_TEACHER")
                         .requestMatchers("/api/v1/exercise-attempts/**", "/api/v1/practice-exercises/**",

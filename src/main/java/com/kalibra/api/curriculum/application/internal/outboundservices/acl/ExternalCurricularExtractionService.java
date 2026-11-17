@@ -1,19 +1,26 @@
 package com.kalibra.api.curriculum.application.internal.outboundservices.acl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CurricularContent;
+import com.kalibra.api.shared.engine.EngineProperties;
 import com.kalibra.api.shared.engine.EngineTaskClient;
 import com.kalibra.api.shared.engine.EngineTaskFailedException;
-import org.springframework.stereotype.Service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
-// Extraction runs on the engine's task queue. Empty means the engine rejected the material itself
-// (unreadable or unsupported): it becomes an ingestion error. Anything else (engine or provider
-// down, missing key, timeout) is thrown, so the material stays pending and is retried later.
 @Service
 public class ExternalCurricularExtractionService {
 
@@ -21,11 +28,55 @@ public class ExternalCurricularExtractionService {
 
     private final EngineTaskClient engineTaskClient;
     private final MaterialStorageService materialStorageService;
+    private final RestClient engineRestClient;
+    private final Duration capabilitiesTtl;
+    private final Clock clock;
+    private Instant capabilitiesExpireAt;
+    private boolean curricularExtractionAvailable;
 
+    @Autowired
     public ExternalCurricularExtractionService(EngineTaskClient engineTaskClient,
-                                               MaterialStorageService materialStorageService) {
+                                               MaterialStorageService materialStorageService,
+                                               @Qualifier("engineRestClient") RestClient engineRestClient,
+                                               EngineProperties properties) {
+        this(engineTaskClient, materialStorageService, engineRestClient, properties.capabilitiesTtl(), Clock.systemUTC());
+    }
+
+    ExternalCurricularExtractionService(EngineTaskClient engineTaskClient,
+                                        MaterialStorageService materialStorageService,
+                                        RestClient engineRestClient,
+                                        Duration capabilitiesTtl,
+                                        Clock clock) {
         this.engineTaskClient = engineTaskClient;
         this.materialStorageService = materialStorageService;
+        this.engineRestClient = engineRestClient;
+        this.capabilitiesTtl = capabilitiesTtl;
+        this.clock = clock;
+    }
+
+    public synchronized boolean isCurricularExtractionAvailable() {
+        var now = clock.instant();
+        if (capabilitiesExpireAt != null && now.isBefore(capabilitiesExpireAt)) {
+            return curricularExtractionAvailable;
+        }
+        curricularExtractionAvailable = false;
+        try {
+            var capabilities = engineRestClient.get()
+                    .uri("/api/v1/capabilities")
+                    .retrieve()
+                    .onStatus(status -> status.value() != 200, (request, response) -> {
+                        throw new RestClientException("Material upload availability is temporarily unavailable");
+                    })
+                    .body(JsonNode.class);
+            if (capabilities != null) {
+                var extraction = capabilities.path("curricularExtraction");
+                curricularExtractionAvailable = extraction.isBoolean() && extraction.booleanValue();
+            }
+        } catch (RestClientException unavailable) {
+            curricularExtractionAvailable = false;
+        }
+        capabilitiesExpireAt = now.plus(capabilitiesTtl);
+        return curricularExtractionAvailable;
     }
 
     public Optional<CurricularContent> extract(CurricularMaterial material) {

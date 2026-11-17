@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalCurricularExtractionService;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.MaterialUploadUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
@@ -69,6 +70,9 @@ public class CurricularMaterialCommandServiceImpl implements CurricularMaterialC
         if (!command.format().isSignatureOf(command.content())) {
             throw UnsupportedMaterialFormatException.unreadable(command.format().name());
         }
+        if (!externalCurricularExtractionService.isCurricularExtractionAvailable()) {
+            throw new MaterialUploadUnavailableException();
+        }
         var storageReference = materialStorageService.store(command.fileName(), command.content());
         var material = CurricularMaterial.register(command, storageReference);
         var saved = curricularMaterialRepository.save(material);
@@ -91,8 +95,8 @@ public class CurricularMaterialCommandServiceImpl implements CurricularMaterialC
         try {
             content = externalCurricularExtractionService.extract(material);
         } catch (RuntimeException engineUnavailable) {
-            log.warn("Curricular material {} stays pending ingestion: {}",
-                    material.getId().value(), engineUnavailable.getMessage());
+            log.warn("Curricular material {} stays pending ingestion; processing is temporarily unavailable",
+                    material.getId().value());
             return;
         }
         if (content.isPresent()) {
