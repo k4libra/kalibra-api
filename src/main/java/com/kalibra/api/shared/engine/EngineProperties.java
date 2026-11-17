@@ -9,8 +9,6 @@ public record EngineProperties(
         String baseUrl,
         Duration requestTimeout,
         Duration taskTimeout,
-        String tasksStream,
-        String resultsStream,
-        String resultsGroup
+        Duration capabilitiesTtl
 ) {
 }
