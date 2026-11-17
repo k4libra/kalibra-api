@@ -7,6 +7,10 @@ public record SubmitAnswerCommand(
         String holderId,
         CourseId courseId,
         ExerciseId exerciseId,
-        String selectedOptionKey
+        String selectedOptionKey,
+        Integer timeSpentSeconds
 ) {
+    public SubmitAnswerCommand(String holderId, CourseId courseId, ExerciseId exerciseId, String selectedOptionKey) {
+        this(holderId, courseId, exerciseId, selectedOptionKey, null);
+    }
 }

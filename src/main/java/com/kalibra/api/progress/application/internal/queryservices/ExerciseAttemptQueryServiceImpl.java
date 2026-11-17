@@ -64,7 +64,8 @@ public class ExerciseAttemptQueryServiceImpl
                 attempt.getResult(),
                 attempt.getFeedback(),
                 attempt.getMasteryChange(),
-                attempt.getAnsweredAt()
+                attempt.getAnsweredAt(), attempt.getTimeSpentSeconds(), attempt.getSelectedOptionKey(),
+                attempt.getCorrectOptionKey(), attempt.getOptions(), attempt.getExplanationSteps(), attempt.getKeyIdea()
         );
     }
 }

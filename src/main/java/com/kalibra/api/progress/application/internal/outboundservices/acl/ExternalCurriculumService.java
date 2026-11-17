@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service("progressExternalCurriculumService")
 public class ExternalCurriculumService {
@@ -34,17 +36,19 @@ public class ExternalCurriculumService {
                         key.statement(),
                         key.correctOptionKey(),
                         key.explanation(),
-                        new SubtopicId(key.subtopicId())
+                        new SubtopicId(key.subtopicId()), key.options(), key.explanationSteps(), key.keyIdea()
                 ));
     }
 
     public Optional<PracticeExerciseView> provideExercise(
             RequestPracticeExerciseCommand command,
-            Optional<MasteryProbability> mastery) {
+            Optional<MasteryProbability> mastery,
+            Set<ExerciseId> excludedExerciseIds) {
         var request = new PracticeExerciseRequest(
                 command.courseId().value(),
                 command.subtopicId().value(),
-                mastery.map(MasteryProbability::value)
+                mastery.map(MasteryProbability::value),
+                excludedExerciseIds.stream().map(ExerciseId::value).collect(Collectors.toSet())
         );
         return curriculumContextFacade
                 .provideExerciseForStudent(request)
@@ -70,6 +74,10 @@ public class ExternalCurriculumService {
 
     public List<SubtopicSummary> fetchHistoricalSubtopics(CourseId courseId) {
         return curriculumContextFacade.fetchHistoricalSubtopics(courseId.value());
+    }
+
+    public List<SubtopicSummary> fetchPracticableSubtopics(CourseId courseId) {
+        return curriculumContextFacade.fetchPracticableSubtopics(courseId.value());
     }
 
     public List<SubtopicSummary> fetchSubtopics(CourseId courseId) {

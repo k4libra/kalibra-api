@@ -1,8 +1,10 @@
 package com.kalibra.api.progress.interfaces.rest.resources;
 
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record ExerciseAttemptResource(
@@ -20,6 +22,8 @@ public record ExerciseAttemptResource(
         int masteryDeltaPoints,
         @Schema(description = "false when the mastery stayed the same")
         boolean masteryChanged,
+        Integer timeSpentSeconds, String selectedOptionKey, String correctOptionKey,
+        List<String> options, List<ExplanationStep> explanationSteps, String keyIdea,
         Instant answeredAt
 ) {
 }

@@ -10,6 +10,7 @@ import com.kalibra.api.curriculum.domain.model.queries.GetAllCoursesQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetGeneratedExerciseByIdQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetPracticableSubtopicsQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetVerificationApprovalByCourseQuery;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseId;
@@ -31,6 +32,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
@@ -76,7 +78,7 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
         return findCourse(courseId)
                 .map(course -> course.getSubtopics().stream()
                         .filter(Subtopic::isActive)
-                        .map(subtopic -> new SubtopicSummary(subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder()))
+                        .map(subtopic -> new SubtopicSummary(subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder(), subtopic.getDescription()))
                         .toList())
                 .orElse(List.of());
     }
@@ -86,9 +88,18 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
         return findCourse(courseId)
                 .map(course -> course.getSubtopics().stream()
                         .map(subtopic -> new SubtopicSummary(
-                                subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder()))
+                                subtopic.getId().value(), subtopic.getName(), subtopic.getDisplayOrder(), subtopic.getDescription()))
                         .toList())
                 .orElse(List.of());
+    }
+
+    @Override
+    public List<SubtopicSummary> fetchPracticableSubtopics(UUID courseId) {
+        return courseQueryService.handle(new GetPracticableSubtopicsQuery(
+                        new CourseId(courseId))).stream()
+                .map(subtopic -> new SubtopicSummary(subtopic.getId().value(), subtopic.getName(),
+                        subtopic.getDisplayOrder(), subtopic.getDescription()))
+                .toList();
     }
 
     @Override
@@ -103,7 +114,9 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
                 ? Optional.<MasteryProbability>empty()
                 : request.masteryProbability().map(MasteryProbability::new);
         var command = new GenerateExerciseForStudentCommand(
-                new CourseId(request.courseId()), new SubtopicId(request.subtopicId()), mastery);
+                new CourseId(request.courseId()), new SubtopicId(request.subtopicId()), mastery,
+                request.excludedExerciseIds().stream().map(ExerciseId::new).collect(Collectors.toSet()),
+                Optional.empty());
         try {
             return generatedExerciseCommandService.handle(command)
                     .filter(GeneratedExercise::isAvailableToStudents)
@@ -121,7 +134,9 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
         return generatedExerciseQueryService.handle(new GetGeneratedExerciseByIdQuery(new ExerciseId(exerciseId)))
                 .filter(GeneratedExercise::isAvailableToStudents)
                 .map(exercise -> new ExerciseAnswerKey(exercise.getId().value(), exercise.getSubtopicId().value(),
-                        exercise.getStatement(), exercise.correctOption().getKey(), exercise.getExplanation()));
+                        exercise.getStatement(), exercise.correctOption().getKey(), exercise.getExplanation(),
+                        exercise.getOptions().stream().sorted(Comparator.comparing(ExerciseOption::getKey))
+                                .map(ExerciseOption::getText).toList(), exercise.getExplanationSteps(), exercise.getKeyIdea()));
     }
 
     @Override
@@ -144,7 +159,7 @@ public class CurriculumContextFacadeImpl implements CurriculumContextFacade {
     }
 
     private CourseSummary toSummary(Course course) {
-        return new CourseSummary(course.getId().value(), course.getName(), course.getCode().value(), course.getHolderId());
+        return new CourseSummary(course.getId().value(), course.getName(), course.getCode().value(), course.getHolderId(), course.getTerm(), course.getFaculty(), course.getSemester());
     }
 
     private ExerciseSnapshot toSnapshot(GeneratedExercise exercise) {

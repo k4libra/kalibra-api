@@ -9,8 +9,11 @@ import com.kalibra.api.progress.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.progress.domain.model.valueobjects.Feedback;
 import com.kalibra.api.progress.domain.model.valueobjects.MasteryChange;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
+import com.kalibra.api.shared.exercises.ExplanationSteps;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public class ExerciseAttempt {
@@ -27,6 +30,16 @@ public class ExerciseAttempt {
     private MasteryChange masteryChange;
     private Instant answeredAt;
 
+    private List<ExplanationStep> explanationSteps;
+
+    private String keyIdea;
+
+    private Integer timeSpentSeconds;
+
+    private String correctOptionKey;
+
+    private List<String> options;
+
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public ExerciseAttempt() {
     }
@@ -41,7 +54,15 @@ public class ExerciseAttempt {
         if (change == null) {
             throw new IllegalArgumentException("An answer is recorded with its mastery change");
         }
+        if (command.timeSpentSeconds() != null && (command.timeSpentSeconds() < 0 || command.timeSpentSeconds() > 3600)) {
+            throw new IllegalArgumentException("El tiempo debe estar entre 0 y 3600 segundos");
+        }
         var attempt = new ExerciseAttempt();
+        attempt.timeSpentSeconds = command.timeSpentSeconds();
+        attempt.correctOptionKey = answerKey.correctOptionKey();
+        attempt.options = answerKey.options() == null ? List.of() : List.copyOf(answerKey.options());
+        attempt.explanationSteps = ExplanationSteps.resolve(answerKey.explanationSteps(), answerKey.explanation());
+        attempt.keyIdea = answerKey.keyIdea();
         attempt.id = new AttemptId(UUID.randomUUID());
         attempt.holderId = command.holderId();
         attempt.courseId = command.courseId();
@@ -148,5 +169,45 @@ public class ExerciseAttempt {
 
     public void setAnsweredAt(Instant answeredAt) {
         this.answeredAt = answeredAt;
+    }
+
+    public List<ExplanationStep> getExplanationSteps() {
+        return ExplanationSteps.resolve(explanationSteps, feedback == null ? null : feedback.explanation());
+    }
+
+    public void setExplanationSteps(List<ExplanationStep> explanationSteps) {
+        this.explanationSteps = explanationSteps;
+    }
+
+    public String getKeyIdea() {
+        return keyIdea;
+    }
+
+    public void setKeyIdea(String keyIdea) {
+        this.keyIdea = keyIdea;
+    }
+
+    public Integer getTimeSpentSeconds() {
+        return timeSpentSeconds;
+    }
+
+    public void setTimeSpentSeconds(Integer timeSpentSeconds) {
+        this.timeSpentSeconds = timeSpentSeconds;
+    }
+
+    public String getCorrectOptionKey() {
+        return correctOptionKey;
+    }
+
+    public void setCorrectOptionKey(String correctOptionKey) {
+        this.correctOptionKey = correctOptionKey;
+    }
+
+    public List<String> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
     }
 }

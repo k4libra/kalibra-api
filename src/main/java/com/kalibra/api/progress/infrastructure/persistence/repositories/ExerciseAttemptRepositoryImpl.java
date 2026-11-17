@@ -3,6 +3,7 @@ package com.kalibra.api.progress.infrastructure.persistence.repositories;
 import com.kalibra.api.progress.domain.model.aggregates.ExerciseAttempt;
 import com.kalibra.api.progress.domain.model.valueobjects.AnswerResult;
 import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
+import com.kalibra.api.progress.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.progress.domain.model.valueobjects.ExerciseAttemptPage;
 import com.kalibra.api.progress.domain.model.valueobjects.Pagination;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
@@ -17,6 +18,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 public class ExerciseAttemptRepositoryImpl
@@ -30,6 +33,17 @@ public class ExerciseAttemptRepositoryImpl
             ExerciseAttemptJpaMapper mapper) {
         this.jpaRepository = jpaRepository;
         this.mapper = mapper;
+    }
+
+    @Override
+    public Set<ExerciseId> findAnsweredExerciseIdsByHolderIdAndSubtopicId(String holderId, SubtopicId subtopicId) {
+        return jpaRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, subtopicId.value()).stream()
+                .map(ExerciseId::new).collect(Collectors.toSet());
+    }
+
+    @Override
+    public Optional<ExerciseAttempt> findFirstByHolderIdAndCourseIdOrderByAnsweredAtDesc(String holderId, CourseId courseId) {
+        return jpaRepository.findFirstByHolderIdAndCourseIdOrderByAnsweredAtDesc(holderId, courseId.value()).map(mapper::toDomain);
     }
 
     @Override

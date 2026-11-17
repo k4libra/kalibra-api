@@ -41,7 +41,7 @@ public class PracticeExercisesController {
 
     @Operation(summary = "Request a practice exercise",
             description = "Generates an exercise for a subtopic of a course I am enrolled in, adjusted to my current mastery. "
-                    + "Only an exercise approved by the verification is delivered, with its four options in order A, B, C, D "
+                    + "Use mode EXPRESS without subtopicId to cycle through the weakest ACTIVE subtopics with READY material. Only an exercise approved by the verification is delivered, with its four options in order A, B, C, D "
                     + "and without the answer.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Verified exercise ready to be answered"),

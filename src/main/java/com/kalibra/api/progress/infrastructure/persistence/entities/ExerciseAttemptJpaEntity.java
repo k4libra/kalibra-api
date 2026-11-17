@@ -1,12 +1,16 @@
 package com.kalibra.api.progress.infrastructure.persistence.entities;
 
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -45,6 +49,23 @@ public class ExerciseAttemptJpaEntity {
 
     @Column(name = "answered_at", nullable = false)
     private Instant answeredAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "explanation_steps", columnDefinition = "jsonb")
+    private List<ExplanationStep> explanationSteps;
+
+    @Column(name = "key_idea", columnDefinition = "text")
+    private String keyIdea;
+
+    @Column(name = "time_spent_seconds")
+    private Integer timeSpentSeconds;
+
+    @Column(name = "correct_option_key", length = 1)
+    private String correctOptionKey;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<String> options;
 
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public ExerciseAttemptJpaEntity() {
@@ -136,5 +157,45 @@ public class ExerciseAttemptJpaEntity {
 
     public void setAnsweredAt(Instant answeredAt) {
         this.answeredAt = answeredAt;
+    }
+
+    public List<ExplanationStep> getExplanationSteps() {
+        return explanationSteps;
+    }
+
+    public void setExplanationSteps(List<ExplanationStep> explanationSteps) {
+        this.explanationSteps = explanationSteps;
+    }
+
+    public String getKeyIdea() {
+        return keyIdea;
+    }
+
+    public void setKeyIdea(String keyIdea) {
+        this.keyIdea = keyIdea;
+    }
+
+    public Integer getTimeSpentSeconds() {
+        return timeSpentSeconds;
+    }
+
+    public void setTimeSpentSeconds(Integer timeSpentSeconds) {
+        this.timeSpentSeconds = timeSpentSeconds;
+    }
+
+    public String getCorrectOptionKey() {
+        return correctOptionKey;
+    }
+
+    public void setCorrectOptionKey(String correctOptionKey) {
+        this.correctOptionKey = correctOptionKey;
+    }
+
+    public List<String> getOptions() {
+        return options;
+    }
+
+    public void setOptions(List<String> options) {
+        this.options = options;
     }
 }

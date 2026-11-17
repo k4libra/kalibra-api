@@ -16,6 +16,7 @@ import com.kalibra.api.progress.domain.model.valueobjects.MasteryChange;
 import com.kalibra.api.progress.domain.model.valueobjects.MasteryEstimate;
 import com.kalibra.api.progress.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.progress.domain.model.valueobjects.PracticeExerciseView;
+import com.kalibra.api.progress.domain.model.valueobjects.PracticeMode;
 import com.kalibra.api.progress.domain.model.valueobjects.StudentId;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.progress.domain.repositories.ExerciseAttemptRepository;
@@ -26,8 +27,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 @Service
 public class ExerciseAttemptCommandServiceImpl
@@ -40,6 +44,14 @@ public class ExerciseAttemptCommandServiceImpl
     private final ExternalMasteryEstimationService externalMasteryEstimationService;
     private final ApplicationEventPublisher eventPublisher;
     private final TransactionTemplate transaction;
+    private final ConcurrentMap<ExpressSelection, UUID> expressCursors = new ConcurrentHashMap<>();
+
+    private record ExpressSelection(String holderId, CourseId courseId) { }
+    private record Candidate(SubtopicId subtopicId, Optional<MasteryProbability> mastery) {
+        int priority() {
+            return mastery.map(value -> value.value() < 0.4 ? 0 : 2).orElse(1);
+        }
+    }
 
     public ExerciseAttemptCommandServiceImpl(
             ExerciseAttemptRepository exerciseAttemptRepository,
@@ -85,11 +97,77 @@ public class ExerciseAttemptCommandServiceImpl
     public Optional<PracticeExerciseView> handle(
             RequestPracticeExerciseCommand command) {
         requireEnrollment(command.holderId(), command.courseId());
+        if (command.mode() == PracticeMode.EXPRESS) {
+            return expressExercise(command);
+        }
+        if (command.subtopicId() == null) {
+            throw new IllegalArgumentException("Selecciona un subtema para la práctica dirigida");
+        }
         var mastery = currentMastery(command.holderId(), command.subtopicId());
-        return externalCurriculumService.provideExercise(
-                command,
-                mastery
-        );
+        return provideExercise(command, mastery);
+    }
+
+    private static final int EXPRESS_MAX_TRIES = 2;
+
+    private Optional<PracticeExerciseView> expressExercise(RequestPracticeExerciseCommand command) {
+        if (command.subtopicId() != null) {
+            throw new IllegalArgumentException("La práctica express selecciona el subtema automáticamente");
+        }
+        var candidates = externalCurriculumService.fetchPracticableSubtopics(command.courseId()).stream()
+                .map(subtopic -> new SubtopicId(subtopic.subtopicId()))
+                .map(id -> new Candidate(id, currentMastery(command.holderId(), id)))
+                .sorted(Comparator.comparingInt(Candidate::priority)
+                        .thenComparingDouble(candidate -> candidate.mastery().map(MasteryProbability::value).orElse(0.0)))
+                .toList();
+        if (candidates.isEmpty()) {
+            return Optional.empty();
+        }
+        var key = new ExpressSelection(command.holderId(), command.courseId());
+        var recent = exerciseAttemptRepository.findFirstByHolderIdAndCourseIdOrderByAnsweredAtDesc(
+                command.holderId(), command.courseId()).map(attempt -> attempt.getSubtopicId().value());
+        var selectedId = expressCursors.compute(key, (ignored, previous) -> {
+            int start = 0;
+            for (int index = 0; index < candidates.size(); index++) {
+                if (candidates.get(index).subtopicId().value().equals(previous)) {
+                    start = (index + 1) % candidates.size();
+                    break;
+                }
+            }
+            for (int offset = 0; offset < candidates.size(); offset++) {
+                var id = candidates.get((start + offset) % candidates.size()).subtopicId().value();
+                if (candidates.size() == 1 || recent.filter(id::equals).isEmpty()) {
+                    return id;
+                }
+            }
+            return candidates.get(start).subtopicId().value();
+        });
+        // A subtopic can yield no verified exercise at its level (every candidate discarded); then the
+        // next candidate in rotation is tried so an express session does not stop. Bounded to keep latency.
+        int first = 0;
+        for (int index = 0; index < candidates.size(); index++) {
+            if (candidates.get(index).subtopicId().value().equals(selectedId)) {
+                first = index;
+                break;
+            }
+        }
+        int tries = Math.min(EXPRESS_MAX_TRIES, candidates.size());
+        for (int offset = 0; offset < tries; offset++) {
+            var candidate = candidates.get((first + offset) % candidates.size());
+            var exercise = provideExercise(new RequestPracticeExerciseCommand(
+                    command.holderId(), command.courseId(), candidate.subtopicId()), candidate.mastery());
+            if (exercise.isPresent()) {
+                expressCursors.put(key, candidate.subtopicId().value());
+                return exercise;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<PracticeExerciseView> provideExercise(RequestPracticeExerciseCommand command,
+                                                          Optional<MasteryProbability> mastery) {
+        var excluded = exerciseAttemptRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(
+                command.holderId(), command.subtopicId());
+        return externalCurriculumService.provideExercise(command, mastery, excluded);
     }
 
     private ExerciseAttempt record(ExerciseAttempt attempt, MasteryEstimate estimate) {
