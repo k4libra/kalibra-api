@@ -7,15 +7,10 @@ spring:
     username: ${DB_USER:quedena}
     password: ${DB_PASSWORD}
 
-  data:
-    redis:
-      url: ${REDIS_URL:redis://localhost:6379/0}
-      timeout: 5s
-
   servlet:
     multipart:
-      max-file-size: ${MATERIALS_MAX_FILE_SIZE:10MB}
-      max-request-size: ${MATERIALS_MAX_FILE_SIZE:10MB}
+      max-file-size: ${MATERIALS_MAX_FILE_SIZE:20MB}
+      max-request-size: ${MATERIALS_MAX_FILE_SIZE:20MB}
 
   jpa:
     hibernate:
@@ -49,11 +44,9 @@ kalibra:
       url-validity: ${R2_URL_VALIDITY:PT15M}   # lifetime of the presigned URL handed to the adaptive engine
   engine:
     base-url: ${ENGINE_BASE_URL:http://localhost:8000}
+    capabilities-ttl: ${ENGINE_CAPABILITIES_TTL:PT30S}
     request-timeout: ${ENGINE_REQUEST_TIMEOUT:PT5S}   # synchronous mastery estimation
-    task-timeout: ${ENGINE_TASK_TIMEOUT:PT4M}         # queued extraction and generation
-    tasks-stream: ${ENGINE_TASKS_STREAM:kalibra:engine:tasks}
-    results-stream: ${ENGINE_RESULTS_STREAM:kalibra:engine:results}
-    results-group: ${ENGINE_RESULTS_GROUP:kalibra-api}
+    task-timeout: ${ENGINE_TASK_TIMEOUT:PT4M}         # long REST calls: extraction and generation
   progress:
     gap-map-cache-ttl: ${GAP_MAP_CACHE_TTL:PT10M}
   curriculum:
@@ -81,6 +74,3 @@ management:
   endpoint:
     health:
       show-details: never   # UP/DOWN only; no infra details to an unauthenticated caller
-  health:
-    redis:
-      enabled: false   # Redis backs the engine queue and a cache; the API itself stays up without it
