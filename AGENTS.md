@@ -15,7 +15,7 @@ There is no Maven wrapper; use a local `mvn` (3.9+) with JDK 25.
 
 ```bash
 cp .env.example .env                  # set DB_PASSWORD and JWT_SECRET
-docker compose up -d                  # PostgreSQL 17 only
+docker compose up -d postgres engine  # PostgreSQL 17 + Adaptive Engine (no Redis)
 set -a && . ./.env && set +a && mvn spring-boot:run   # the app reads its config from env vars
 
 mvn clean verify                      # full build + tests (what CI runs, as `mvn -B test`)
@@ -60,14 +60,14 @@ Each module is implemented from a validated PlantUML class diagram, one per BC, 
 - `PushReminderNotificationService` only logs; the push provider is undecided.
 - Push delivery (`PushReminderNotificationService`, `PushInvitationNotificationService`) only logs until a push provider is chosen.
 
-**Adaptive Engine, Redis and storage** (how the external pieces are wired)
+**Adaptive Engine and storage** (how the external pieces are wired)
 
-- The engine's contract is in the sibling repo (`kalibra-adaptive-engine`, `docs/redis-task-queue.md`). Its three ACLs keep the diagram's intent: `ExternalMasteryEstimationService` calls REST (`engineRestClient`, HTTP/1.1) because the student needs the answer now; `ExternalCurricularExtractionService` and `ExternalExerciseGenerationService` go through `shared/engine/EngineTaskClient`, which publishes on `kalibra:engine:tasks` and waits for the outcome with the same `taskId` on `kalibra:engine:results` (consumer group `kalibra-api`).
+- The engine's contract is its REST API in the sibling repo (`kalibra-adaptive-engine`). All three ACLs call it over HTTP/1.1: `ExternalMasteryEstimationService` uses `engineRestClient` (short `ENGINE_REQUEST_TIMEOUT`, the student needs the answer now); `ExternalCurricularExtractionService` and `ExternalExerciseGenerationService` use `shared/engine/EngineTaskClient` over `engineTaskRestClient` (`ENGINE_TASK_TIMEOUT`, `POST /api/v1/{curricular-extractions|exercise-generations}`). There is no Redis or queue.
 - Engine status meaning: `422` the input is bad (extraction returns empty → `INGESTION_ERROR`); `502`, timeouts and anything else are `EngineTaskFailedException`/`EngineUnavailableException` → material stays pending, REST answers `503` (`GlobalExceptionHandler`). Never turn a provider outage into an ingestion error.
-- `EngineTaskClient` acknowledges results on read and drops the ones nobody waits for; callers must be safe to repeat (the reconciliation job retries extraction). It assumes a single API instance.
+- `EngineTaskClient` keeps the engine's problem status in `EngineTaskFailedException` and turns timeouts/unreachable into `EngineUnavailableException`; callers must be safe to repeat (the reconciliation job retries extraction). Each request gets its own response, so it works with several API instances.
 - `shared/engine` and `shared/config` must not depend on any bounded context (ArchUnit). Do not create a `shared/infrastructure` package: the rule treats `*.infrastructure` as a bounded-context layer.
 - `MaterialStorageService` has two adapters selected by `kalibra.storage.provider`: `R2MaterialStorageService` (default; private bucket, `temporaryUrl` presigns a GET for the engine, clients built lazily so the app starts without credentials and uploads answer `503`) and `FileSystemMaterialStorageService` (`filesystem`, development only, the engine cannot read it). Files never go to PostgreSQL; only an opaque `storageReference` is stored.
-- `RedisGapMapCacheService` stores the gap map as JSON in Redis with a TTL and degrades to a miss when Redis is down. The Redis health indicator is disabled on purpose: the API stays up without Redis.
+- `InMemoryGapMapCacheService` keeps computed gap maps in a per-instance map with a TTL (`GAP_MAP_CACHE_TTL`); `AnswerRecordedEventHandler` evicts the course after each mastery update. With several instances another one may serve a map up to the TTL old.
 
 ## Conventions
 

@@ -23,8 +23,8 @@ rather than over the network.
 - In-process Domain Events
 - Scheduled jobs (Spring `@Scheduled`)
 - Multipart file upload stored in Cloudflare R2 (private bucket, presigned URLs)
-- Adaptive Engine integration: REST for mastery, Redis streams for extraction and generation
-- Redis cache for the mastery gap map
+- Adaptive Engine integration over REST (mastery, extraction and generation)
+- In-process TTL cache for the mastery gap map
 - OpenAPI documentation (springdoc, Swagger UI)
 - ArchUnit boundary enforcement
 - Health endpoint (Spring Boot Actuator)
@@ -93,6 +93,9 @@ for them. It includes the following features:
 - Upload curricular material (PDF, PNG or JPEG) anchored to one or more subtopics of the
   course. It starts as `PENDING_INGESTION` and turns `READY` (usable to generate exercises)
   or `INGESTION_ERROR` (with its `failureReason`).
+- Read `GET /api/v1/curricular-extraction-availability` (teacher only) for `{ "available": true|false }`.
+  Upload checks availability before storing a file; unavailable uploads answer `503` with
+  `code: "MATERIAL_UPLOAD_UNAVAILABLE"` and detail `"Material upload is temporarily unavailable."`.
 - List the material of a course, paginated and newest first, with the ingestion status of
   each file.
 - An upload whose content is not a real PDF, PNG or JPEG (corrupt or mislabeled file) is
@@ -115,9 +118,9 @@ Ingestion is event-driven: `MaterialUploaded` is handled after commit by
 `MaterialUploadedEventHandler`, and `PendingIngestionReconciliationJob` retries every
 material still pending (every 5 minutes by default), so a failure after the commit is never
 lost. Content extraction and exercise generation are delegated to the Adaptive Engine through
-`ExternalCurricularExtractionService` and `ExternalExerciseGenerationService`. Both publish a
-task on the engine's Redis stream (`kalibra:engine:tasks`) and wait for the outcome with the
-same `taskId` on `kalibra:engine:results` (`shared/engine/EngineTaskClient`). A material the
+`ExternalCurricularExtractionService` and `ExternalExerciseGenerationService`. Both call the
+engine's REST endpoints (`POST /api/v1/curricular-extractions`, `POST /api/v1/exercise-generations`)
+through `shared/engine/EngineTaskClient`, with a read timeout of `ENGINE_TASK_TIMEOUT`. A material the
 engine rejects (`422`) becomes `INGESTION_ERROR`; when the engine, an AI provider or its key is
 unavailable the material stays `PENDING_INGESTION` and is retried, and generation answers `503`.
 
@@ -140,8 +143,8 @@ enrollments they turn into. It includes the following features:
   inviting a student who is already invited or enrolled answers `409`.
 - Cancel a pending invitation, or resend a canceled or expired one: it is `PENDING` again
   for 3 more days and the student is notified again. Resending in any other state is `409`.
-- Students list their pending invitations (course, teacher email, sent and expiry dates) and
-  accept or reject them. Accepting enrolls the student in the course; rejecting does not.
+- Students list their pending or expired invitations (course ID/name, teacher name/email, status,
+  sent and expiry dates) and accept or reject pending ones. Accepting enrolls the student in the course; rejecting does not.
 - `InvitationExpirationJob` runs every minute and marks as `EXPIRED` every pending
   invitation past its validity. Past its validity an invitation can no longer be answered,
   even before the job marks it.
@@ -196,8 +199,8 @@ subtopic is kept as the baseline of the mastery evolution.
 Mastery is estimated by the Adaptive Engine through `ExternalMasteryEstimationService`, a
 synchronous REST call (`POST /api/v1/mastery-estimates`) so the student sees the change right
 after answering; if the engine is down, answering an exercise answers `503` and nothing is
-recorded. The gap map is cached in Redis by `RedisGapMapCacheService` (10 minutes by default);
-without Redis it is simply computed on every request.
+recorded. The gap map is cached in memory by `InMemoryGapMapCacheService` (10 minutes by
+default) and evicted after every mastery update; a miss simply recomputes it.
 
 Mastery values travel as percentages (0 to 100). Levels are `LOW` (below 40), `MEDIUM`
 (40 to 70) and `HIGH` (above 70).
@@ -209,7 +212,7 @@ Mastery values travel as percentages (0 to 100). Levels are `LOW` (below 40), `M
 | Language           | Java 25                                  |
 | Framework          | Spring Boot 3.5.15                       |
 | Persistence        | Spring Data JPA · PostgreSQL 17 · Flyway |
-| Queue and cache    | Spring Data Redis · Redis 8              |
+| Cache              | In-process TTL map (gap map)             |
 | File storage       | Cloudflare R2 (AWS SDK for Java v2, S3)  |
 | Mapping            | MapStruct 1.6.3                          |
 | Security           | Spring Security · JWT (jjwt 0.12.6)      |
@@ -249,7 +252,7 @@ Inter-module communication goes through in-process domain events (`UserRegistere
 ### Prerequisites
 
 - JDK 25
-- Docker (PostgreSQL 17, Redis 8 and the Adaptive Engine)
+- Docker (PostgreSQL 17 and the Adaptive Engine)
 - The [`kalibra-adaptive-engine`](https://github.com/k4libra/kalibra-adaptive-engine) repository cloned next to this one
 - Maven 3.9+
 
@@ -272,18 +275,25 @@ does not need them works (accounts, courses, invitations, answering exercises wi
 estimation, progress, gap map, indicators); uploads, extraction and generation answer `503` or
 stay pending until they are set.
 
+An empty `MISTRAL_API_KEY` disables curricular material uploads without preventing startup.
+Set it in the engine environment and restart the engine to re-enable upload without a code change.
+The API reads the internal `GET /api/v1/capabilities` endpoint with `engineRestClient` and caches
+availability (including failures as unavailable) for `ENGINE_CAPABILITIES_TTL` (default 30 seconds).
+Each API instance keeps its own thread-safe cache; changes become visible after its TTL expires.
+External engine error details are not propagated into API exception messages or logs.
+
 Optional settings:
 
 | Variable                         | Default                    | Purpose                                              |
 | -------------------------------- | -------------------------- | ---------------------------------------------------- |
 | `STORAGE_PROVIDER`               | `r2`                       | `filesystem` keeps files locally (development only)  |
 | `MATERIALS_STORAGE_DIR`          | `./storage/materials`      | Folder of the local storage adapter                  |
-| `MATERIALS_MAX_FILE_SIZE`        | `10MB`                     | Largest file accepted by the upload endpoint         |
+| `MATERIALS_MAX_FILE_SIZE`        | `20MB`                     | Largest file accepted by the upload endpoint         |
 | `R2_URL_VALIDITY`                | `PT15M`                    | Lifetime of the presigned URL handed to the engine   |
-| `ENGINE_BASE_URL`                | `http://localhost:8000`    | Adaptive Engine REST endpoint (mastery estimation)   |
+| `ENGINE_BASE_URL`                | `http://localhost:8000`    | Adaptive Engine REST endpoint                        |
 | `ENGINE_REQUEST_TIMEOUT`         | `PT5S`                     | Timeout of the synchronous mastery call              |
-| `ENGINE_TASK_TIMEOUT`            | `PT4M`                     | How long a queued extraction or generation is awaited |
-| `REDIS_URL`                      | `redis://localhost:6379/0` | Engine task queue and gap map cache                  |
+| `ENGINE_CAPABILITIES_TTL`       | `PT30S`                    | Lifetime of cached material upload availability      |
+| `ENGINE_TASK_TIMEOUT`            | `PT4M`                     | Read timeout of extraction and generation calls      |
 | `GAP_MAP_CACHE_TTL`              | `PT10M`                    | Lifetime of a cached gap map                         |
 | `INGESTION_RECONCILIATION_DELAY` | `PT5M`                     | How often pending material is retried                |
 | `CORS_ALLOWED_ORIGIN`            | `http://localhost:5173`    | Comma-separated origins allowed to send the session cookie |
@@ -309,13 +319,13 @@ the institutional indicators.
 ### Running the application
 
 ```bash
-docker compose up --build   # this API, PostgreSQL 17, Redis 8 and the Adaptive Engine
+docker compose up --build   # this API, PostgreSQL 17 and the Adaptive Engine
 ```
 
 To run the API from the IDE or with Maven, start only its dependencies:
 
 ```bash
-docker compose up -d postgres redis engine
+docker compose up -d postgres engine
 mvn spring-boot:run
 ```
 
@@ -467,7 +477,7 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 | `GET`  | `/api/v1/teachers/me/workspace`                         | `TEACHER`                    |
 | `PUT`  | `/api/v1/teachers/me/workspace/active-course`           | `TEACHER` (own course only)  |
 | `POST` | `/api/v1/invitations`                                   | `TEACHER` (own course only)  |
-| `GET`  | `/api/v1/invitations?status=PENDING`                    | `STUDENT` (own invitations)  |
+| `GET`  | `/api/v1/invitations?status=PENDING|EXPIRED`                    | `STUDENT` (own invitations)  |
 | `POST` | `/api/v1/invitations/{id}/cancellations`                | `TEACHER` (own invitation)   |
 | `POST` | `/api/v1/invitations/{id}/renewals`                     | `TEACHER` (own invitation)   |
 | `POST` | `/api/v1/invitations/{id}/acceptances`                  | `STUDENT` (own invitation)   |
@@ -493,6 +503,57 @@ configured with credentials (`shared/config/CorsConfig`, `CORS_ALLOWED_ORIGIN` i
 
 Any other path is denied.
 
+### Course and practice payloads
+
+`POST /api/v1/courses` accepts optional string fields `term` (for example `2026-II`),
+`faculty` and `semester`. `PATCH /api/v1/courses/{id}` accepts the same fields and preserves
+omitted fields. These fields appear in course resources, cross-context `CourseSummary`
+and `GET /api/v1/students/me/courses` responses.
+
+Course creation accepts `subtopics: [{"name":"Equations","description":"Linear equations"}]`.
+The legacy `subtopicNames: ["Equations"]` remains accepted; when `subtopics` is supplied it
+takes precedence. At least one subtopic is required. Descriptions are optional, limited to
+280 characters, and accepted on creation, `POST /courses/{id}/subtopics` and
+`PATCH /courses/{id}/subtopics/{subtopicId}`. Subtopic responses include `description`.
+A description can be edited even when material locks its name; an empty string clears it.
+
+Material resources include `sizeBytes` and nullable `pageCount` (unknown before ingestion).
+`MATERIALS_MAX_FILE_SIZE` defaults to `20MB`; oversized uploads answer `413`. The multipart
+request limit reserves an additional 1 MB for headers and form fields, so a file of exactly
+20 MB remains within the advertised file limit.
+
+Targeted practice still accepts `{ "courseId": "<uuid>", "subtopicId": "<uuid>" }`.
+Express practice accepts `{ "courseId": "<uuid>", "mode": "EXPRESS" }` without a subtopic ID.
+Only `ACTIVE` subtopics with `READY` material qualify. Ranking is mastery below 40% first,
+then no mastery data, then remaining subtopics by ascending mastery. Consecutive express
+requests cycle through that ranked list per student/course, skipping the student's most
+recently attempted subtopic when alternatives exist. The rotation cursor is local to an API
+instance; the persisted latest attempt is respected across instances and restarts.
+No practicable subtopic or no approved exercise answers `404`; enrollment is required.
+The practice response includes the chosen `subtopicId` and option texts in A–D order, without
+revealing feedback or the answer key.
+
+`POST /api/v1/exercise-attempts` accepts optional `timeSpentSeconds` from 0 through 3600.
+The answer response and paginated attempt history include this nullable value,
+`selectedOptionKey`, `correctOptionKey`, `options` (four texts in A–D order),
+`explanationSteps` (`[{"title":"...","detail":"...","kind":"TEXT|CODE|FORMULA"}]`)
+and nullable `keyIdea`, while keeping the plain `explanation`.
+Generated exercises store the engine's `explanationSteps` and `keyIdea`; attempts snapshot
+that feedback and option texts, so later history reads retain the answer as recorded.
+For older rows without structured feedback, the server derives `TEXT` steps from explanation
+sentences/blank lines and `CODE` steps from fenced code blocks. Unrecorded legacy elapsed
+time and key ideas remain null.
+
+`GET /api/v1/invitations` defaults to `status=PENDING`, returning only invitations still
+within their validity. `status=EXPIRED` returns stored `EXPIRED` invitations plus `PENDING`
+rows whose `expiresAt` has passed; their response status is `EXPIRED` even before the
+expiration job runs. Both lists are scoped to the authenticated student and include
+`courseId`, `teacherName` and `status` alongside the existing fields. Other statuses answer `400`.
+
+Curriculum migration `V4` adds course metadata, descriptions and generated-exercise feedback;
+progress migration `V2` adds attempt elapsed time, answer key, option snapshot and feedback.
+Applied migrations remain unchanged.
+
 ## Error Handling
 
 Business errors are answered as RFC 9457 `ProblemDetail` bodies:
@@ -509,7 +570,7 @@ Enrollment errors too: an email without a student account is `422`; a course or 
 invitation of someone else is `404`; answering or canceling an invitation that is no longer
 pending (or past its validity), resending one that is neither canceled nor expired, and
 inviting a student already invited or enrolled are `409`; a `status` filter other than
-`PENDING` on `/invitations`, or other than an invitation status on
+`PENDING` or `EXPIRED` on `/invitations`, or other than an invitation status on
 `/course-invitation-groups`, is `400`.
 
 Generated exercises: a subtopic without ready material is `409`; a quantity outside 1..10 or
