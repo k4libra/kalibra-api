@@ -1,5 +1,6 @@
 package com.kalibra.api.curriculum.interfaces.rest.resources;
 
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -14,6 +15,8 @@ public record GeneratedExerciseResource(
         String statement,
         List<ExerciseOptionResource> options,
         String explanation,
+        List<ExplanationStep> explanationSteps,
+        String keyIdea,
         @Schema(allowableValues = {"EASY", "MEDIUM", "HARD"})
         String difficulty,
         @Schema(allowableValues = {"APPROVED", "DISCARDED"},

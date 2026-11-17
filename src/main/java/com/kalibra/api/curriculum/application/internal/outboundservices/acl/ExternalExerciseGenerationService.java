@@ -14,6 +14,7 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.VerificationOutcome;
 import com.kalibra.api.curriculum.domain.model.valueobjects.VerificationVerdict;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import com.kalibra.api.shared.engine.EngineTaskClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,17 +45,17 @@ public class ExternalExerciseGenerationService {
     }
 
     public List<GeneratedExercise> generate(GenerateExerciseForStudentCommand command, CurricularContent context) {
-        var runs = request(command.courseId(), command.subtopicId(), context, command.mastery(), 1);
+        var runs = request(command.courseId(), command.subtopicId(), context, command.mastery(), 1, command.targetDifficulty());
         return attemptsOf(runs, verification -> GeneratedExercise.fromEngine(command, verification));
     }
 
     public List<GeneratedExercise> generate(GenerateExercisesForSubtopicCommand command, CurricularContent context) {
-        var runs = request(command.courseId(), command.subtopicId(), context, Optional.empty(), command.quantity());
+        var runs = request(command.courseId(), command.subtopicId(), context, Optional.empty(), command.quantity(), Optional.empty());
         return attemptsOf(runs, verification -> GeneratedExercise.fromEngine(command, verification));
     }
 
     private JsonNode request(CourseId courseId, SubtopicId subtopicId, CurricularContent context,
-                             Optional<MasteryProbability> mastery, int quantity) {
+                             Optional<MasteryProbability> mastery, int quantity, Optional<DifficultyLevel> targetDifficulty) {
         var payload = new HashMap<String, Object>();
         payload.put("courseId", courseId.value().toString());
         payload.put("subtopicId", subtopicId.value().toString());
@@ -62,6 +63,7 @@ public class ExternalExerciseGenerationService {
         payload.put("normalizedContent", context.normalizedText());
         payload.put("masteryProbability", mastery.map(MasteryProbability::value).orElse(null));
         payload.put("quantity", quantity);
+        targetDifficulty.ifPresent(difficulty -> payload.put("targetDifficulty", difficulty.name()));
         return engineTaskClient.submit(TASK_TYPE, payload);
     }
 
@@ -109,6 +111,13 @@ public class ExternalExerciseGenerationService {
             options.add(new ExerciseOption(key, text.asText(), key.equals(correctKey)));
             position++;
         }
+        var steps = new ArrayList<ExplanationStep>();
+        for (var step : content.path("explanationSteps")) {
+            steps.add(new ExplanationStep(
+                    step.path("title").asText(""), step.path("detail").asText(""), step.path("kind").asText("TEXT")));
+        }
+        exercise.setExplanationSteps(steps);
+        exercise.setKeyIdea(content.path("keyIdea").isTextual() ? content.path("keyIdea").asText() : null);
         return exercise.withContent(
                 content.path("statement").asText(),
                 options,

@@ -9,6 +9,8 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseOrigin;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.VerificationOutcome;
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
+import com.kalibra.api.shared.exercises.ExplanationSteps;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,6 +30,10 @@ public class GeneratedExercise {
     private DifficultyLevel difficulty;
     private VerificationOutcome verification;
     private Instant generatedAt;
+
+    private List<ExplanationStep> explanationSteps;
+
+    private String keyIdea;
 
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public GeneratedExercise() {
@@ -166,5 +172,21 @@ public class GeneratedExercise {
 
     public void setGeneratedAt(Instant generatedAt) {
         this.generatedAt = generatedAt;
+    }
+
+    public List<ExplanationStep> getExplanationSteps() {
+        return ExplanationSteps.resolve(explanationSteps, explanation);
+    }
+
+    public void setExplanationSteps(List<ExplanationStep> explanationSteps) {
+        this.explanationSteps = explanationSteps;
+    }
+
+    public String getKeyIdea() {
+        return keyIdea;
+    }
+
+    public void setKeyIdea(String keyIdea) {
+        this.keyIdea = keyIdea;
     }
 }

@@ -1,5 +1,6 @@
 package com.kalibra.api.curriculum.infrastructure.persistence.entities;
 
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
@@ -11,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import org.hibernate.annotations.BatchSize;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,6 +57,13 @@ public class GeneratedExerciseJpaEntity {
 
     @Column(name = "generated_at", nullable = false)
     private Instant generatedAt;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "explanation_steps", columnDefinition = "jsonb")
+    private List<ExplanationStep> explanationSteps;
+
+    @Column(name = "key_idea", columnDefinition = "text")
+    private String keyIdea;
 
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public GeneratedExerciseJpaEntity() {
@@ -137,5 +147,21 @@ public class GeneratedExerciseJpaEntity {
 
     public void setGeneratedAt(Instant generatedAt) {
         this.generatedAt = generatedAt;
+    }
+
+    public List<ExplanationStep> getExplanationSteps() {
+        return explanationSteps;
+    }
+
+    public void setExplanationSteps(List<ExplanationStep> explanationSteps) {
+        this.explanationSteps = explanationSteps;
+    }
+
+    public String getKeyIdea() {
+        return keyIdea;
+    }
+
+    public void setKeyIdea(String keyIdea) {
+        this.keyIdea = keyIdea;
     }
 }
