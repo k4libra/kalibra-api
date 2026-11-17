@@ -8,6 +8,9 @@ public record PendingInvitationResource(
         String courseName,
         String teacherEmail,
         Instant sentAt,
+        UUID courseId,
+        String teacherName,
+        String status,
         Instant expiresAt
 ) {
 }

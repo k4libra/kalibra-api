@@ -10,7 +10,8 @@ public record EnrolledCourse(
         String code,
         String teacherName,
         List<EnrolledSubtopic> subtopics,
-        Instant enrolledAt
+        Instant enrolledAt,
+        String term, String faculty, String semester
 ) {
 
     public record EnrolledSubtopic(UUID id, String name, int displayOrder) {

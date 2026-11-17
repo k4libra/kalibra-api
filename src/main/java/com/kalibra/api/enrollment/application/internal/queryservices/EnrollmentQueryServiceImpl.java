@@ -123,7 +123,7 @@ public class EnrollmentQueryServiceImpl implements EnrollmentQueryService {
                     summary.code(),
                     teacherNameOf(summary.holderId()),
                     subtopics,
-                    enrollment.getEnrolledAt()
+                    enrollment.getEnrolledAt(), summary.term(), summary.faculty(), summary.semester()
             ));
         }
         return result;

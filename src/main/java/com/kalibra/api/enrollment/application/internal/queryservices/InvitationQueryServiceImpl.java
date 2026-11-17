@@ -16,9 +16,13 @@ import com.kalibra.api.enrollment.domain.services.InvitationQueryService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 public class InvitationQueryServiceImpl implements InvitationQueryService {
@@ -41,17 +45,42 @@ public class InvitationQueryServiceImpl implements InvitationQueryService {
     public List<PendingInvitationView> handle(GetPendingInvitationsByHolderIdQuery query) {
         var now = Instant.now();
         var studentId = new StudentId(UUID.fromString(query.holderId()));
-        return invitationRepository.findAllByStudentIdAndStatus(studentId, InvitationStatus.PENDING).stream()
-                .filter(invitation -> !invitation.getValidity().hasExpired(now))
+        if (query.status() != InvitationStatus.PENDING && query.status() != InvitationStatus.EXPIRED) {
+            throw new IllegalArgumentException("Only PENDING and EXPIRED invitations can be listed");
+        }
+        var invitations = new ArrayList<>(invitationRepository.findAllByStudentIdAndStatus(studentId, InvitationStatus.PENDING));
+        if (query.status() == InvitationStatus.EXPIRED) {
+            invitations.addAll(invitationRepository.findAllByStudentIdAndStatus(studentId, InvitationStatus.EXPIRED));
+        }
+        return invitations.stream()
+                .filter(invitation -> query.status() == InvitationStatus.EXPIRED
+                        ? invitation.getStatus() == InvitationStatus.EXPIRED || invitation.getValidity().hasExpired(now)
+                        : !invitation.getValidity().hasExpired(now))
                 .flatMap(invitation -> externalCurriculumService.fetchCourseSummary(invitation.getCourseId())
                         .map(course -> new PendingInvitationView(
                                 invitation.getId().value(),
                                 course.name(),
                                 externalIamService.fetchUserEmail(invitation.getHolderId()).orElse(""),
                                 invitation.getValidity().sentAt(),
+                                course.courseId(), teacherNameOf(invitation.getHolderId()), query.status().name(),
                                 invitation.getValidity().expiresAt()))
                         .stream())
                 .toList();
+    }
+
+    private String teacherNameOf(String holderId) {
+        try {
+            var name = externalIamService.fetchUserName(UUID.fromString(holderId));
+            if (name == null) {
+                return null;
+            }
+            var fullName = Stream.of(name.firstName(), name.lastName())
+                    .filter(Objects::nonNull).filter(part -> !part.isBlank())
+                    .collect(Collectors.joining(" "));
+            return fullName.isBlank() ? null : fullName;
+        } catch (IllegalArgumentException malformedHolderId) {
+            return null;
+        }
     }
 
     // Every course of the teacher is listed, even without invitations (FR-027); the optional

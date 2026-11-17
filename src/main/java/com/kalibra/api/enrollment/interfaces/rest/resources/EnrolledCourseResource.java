@@ -10,6 +10,7 @@ public record EnrolledCourseResource(
         String code,
         String teacherName,
         List<EnrolledSubtopicResource> subtopics,
-        Instant enrolledAt
+        Instant enrolledAt,
+        String term, String faculty, String semester
 ) {
 }

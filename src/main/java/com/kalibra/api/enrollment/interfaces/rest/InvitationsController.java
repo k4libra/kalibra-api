@@ -74,8 +74,8 @@ public class InvitationsController {
         return created(invitation);
     }
 
-    @Operation(summary = "List my pending invitations",
-            description = "Returns the invitations the authenticated student can still accept or reject, with the course and the teacher who sent them.")
+    @Operation(summary = "List my pending or expired invitations",
+            description = "Lists PENDING invitations by default or EXPIRED invitations, including pending rows past expiresAt, with the course ID and teacher name.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Pending invitations of the student"),
             @ApiResponse(responseCode = "400", description = "Unsupported status filter", content = @Content(schema = @Schema(implementation = ProblemDetail.class))),
@@ -84,13 +84,14 @@ public class InvitationsController {
     })
     @GetMapping
     public ResponseEntity<List<PendingInvitationResource>> getAll(
-            @Parameter(description = "Only PENDING is supported")
+            @Parameter(description = "PENDING (default) or EXPIRED; expiry is effective even before the expiration job runs")
             @RequestParam(defaultValue = "PENDING") String status,
             Authentication authentication) {
-        if (!InvitationStatus.PENDING.name().equalsIgnoreCase(status)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only pending invitations can be listed");
+        if (!InvitationStatus.PENDING.name().equalsIgnoreCase(status) && !InvitationStatus.EXPIRED.name().equalsIgnoreCase(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Solo se pueden listar invitaciones pendientes o vencidas");
         }
-        var invitations = queryService.handle(new GetPendingInvitationsByHolderIdQuery(authentication.getName()));
+        var invitations = queryService.handle(new GetPendingInvitationsByHolderIdQuery(
+                authentication.getName(), InvitationStatus.valueOf(status.toUpperCase(java.util.Locale.ROOT))));
         return ResponseEntity.ok(invitations.stream().map(assembler::toResource).toList());
     }
 
