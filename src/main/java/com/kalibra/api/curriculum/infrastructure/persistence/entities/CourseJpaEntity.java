@@ -39,6 +39,15 @@ public class CourseJpaEntity {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(columnDefinition = "text")
+    private String term;
+
+    @Column(columnDefinition = "text")
+    private String faculty;
+
+    @Column(columnDefinition = "text")
+    private String semester;
+
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public CourseJpaEntity() {
     }
@@ -90,4 +99,28 @@ public class CourseJpaEntity {
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
+    public String getTerm() {
+        return term;
+    }
+
+    public void setTerm(String term) {
+        this.term = term;
+    }
+
+    public String getFaculty() {
+        return faculty;
+    }
+
+    public void setFaculty(String faculty) {
+        this.faculty = faculty;
+    }
+
+    public String getSemester() {
+        return semester;
+    }
+
+    public void setSemester(String semester) {
+        this.semester = semester;
+    }
+
 }

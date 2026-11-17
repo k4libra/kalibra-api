@@ -1,10 +1,12 @@
 package com.kalibra.api.curriculum.domain.services;
 
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
+import com.kalibra.api.curriculum.domain.model.entities.Subtopic;
 import com.kalibra.api.curriculum.domain.model.queries.GetAllCoursesQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetLockedSubtopicIdsByCourseQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetPracticableSubtopicsQuery;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 
 import java.util.List;
@@ -18,6 +20,9 @@ public interface CourseQueryService {
     Optional<Course> handle(GetCourseByIdQuery query);
 
     List<Course> handle(GetAllCoursesQuery query);
+
+    List<Subtopic> handle(
+            GetPracticableSubtopicsQuery query);
 
     Set<SubtopicId> handle(GetLockedSubtopicIdsByCourseQuery query);
 }

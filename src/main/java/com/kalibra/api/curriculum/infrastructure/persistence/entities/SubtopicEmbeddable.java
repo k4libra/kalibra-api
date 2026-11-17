@@ -24,6 +24,9 @@ public class SubtopicEmbeddable {
     @Column(nullable = false, length = 20)
     private SubtopicStatus status = SubtopicStatus.ACTIVE;
 
+    @Column(length = 280)
+    private String description;
+
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public SubtopicEmbeddable() {
     }
@@ -59,4 +62,12 @@ public class SubtopicEmbeddable {
     public void setDisplayOrder(int displayOrder) {
         this.displayOrder = displayOrder;
     }
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
 }

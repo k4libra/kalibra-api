@@ -10,6 +10,8 @@ public class Subtopic {
     private int displayOrder;
     private SubtopicStatus status = SubtopicStatus.ACTIVE;
 
+    private String description;
+
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public Subtopic() {
     }
@@ -21,6 +23,17 @@ public class Subtopic {
         this.id = id;
         this.name = name.trim();
         this.displayOrder = displayOrder;
+    }
+
+    public Subtopic(SubtopicId id, String name, int displayOrder, String description) {
+        this(id, name, displayOrder);
+        setDescription(description);
+    }
+
+    public static void validateDescription(String description) {
+        if (description != null && description.length() > 280) {
+            throw new IllegalArgumentException("La descripción del subtema no puede superar los 280 caracteres");
+        }
     }
 
     public boolean isActive() {
@@ -58,4 +71,13 @@ public class Subtopic {
     public void setDisplayOrder(int displayOrder) {
         this.displayOrder = displayOrder;
     }
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        validateDescription(description);
+        this.description = description;
+    }
+
 }

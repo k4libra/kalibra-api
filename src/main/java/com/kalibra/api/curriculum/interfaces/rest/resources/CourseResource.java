@@ -4,4 +4,4 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-public record CourseResource(UUID id, String name, String code, List<SubtopicResource> subtopics, Instant createdAt) { }
+public record CourseResource(UUID id, String name, String code, List<SubtopicResource> subtopics, Instant createdAt, String term, String faculty, String semester) { }

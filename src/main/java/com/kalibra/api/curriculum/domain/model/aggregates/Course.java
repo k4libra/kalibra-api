@@ -13,6 +13,7 @@ import com.kalibra.api.curriculum.domain.model.commands.UpdateSubtopicCommand;
 import com.kalibra.api.curriculum.domain.model.entities.Subtopic;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseCode;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicDefinition;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 
@@ -31,6 +32,12 @@ public class Course {
     private List<Subtopic> subtopics;
     private Instant createdAt;
 
+    private String term;
+
+    private String faculty;
+
+    private String semester;
+
     // public: required by MapStruct, which generates its mapper impl in a different package.
     public Course() {
     }
@@ -40,21 +47,30 @@ public class Course {
         this.holderId = command.holderId();
         this.name = command.name().trim();
         this.code = command.code();
+        this.term = command.term();
+        this.faculty = command.faculty();
+        this.semester = command.semester();
         this.subtopics = subtopics;
         this.createdAt = Instant.now();
     }
 
     public static Course create(CreateCourseCommand command) {
-        if (command.subtopicNames() == null || command.subtopicNames().isEmpty()) {
+        var definitions = command.subtopics() != null ? command.subtopics()
+                : command.subtopicNames() == null ? List.<SubtopicDefinition>of()
+                : command.subtopicNames().stream().map(name ->
+                        new SubtopicDefinition(name, null)).toList();
+        if (definitions.isEmpty()) {
             throw new CourseWithoutSubtopicsException();
         }
         if (command.name() == null || command.name().isBlank()) {
             throw new IllegalArgumentException("Course name cannot be blank");
         }
         var subtopics = new ArrayList<Subtopic>();
-        for (var position = 0; position < command.subtopicNames().size(); position++) {
+        for (var position = 0; position < definitions.size(); position++) {
             var subtopicId = new SubtopicId(UUID.randomUUID());
-            subtopics.add(new Subtopic(subtopicId, command.subtopicNames().get(position), position + 1));
+            var definition = definitions.get(position);
+            validateName(definition.name());
+            subtopics.add(new Subtopic(subtopicId, definition.name(), position + 1, definition.description()));
         }
         return new Course(command, subtopics);
     }
@@ -63,12 +79,15 @@ public class Course {
         command.name().ifPresent(Course::validateName);
         command.name().ifPresent(value -> name = value.trim());
         command.code().ifPresent(value -> code = value);
+        command.term().ifPresent(value -> term = value);
+        command.faculty().ifPresent(value -> faculty = value);
+        command.semester().ifPresent(value -> semester = value);
     }
 
     public void addSubtopic(AddSubtopicCommand command) {
         validateName(command.name());
         var updated = new ArrayList<>(subtopics);
-        updated.add(new Subtopic(new SubtopicId(UUID.randomUUID()), command.name(), updated.size() + 1));
+        updated.add(new Subtopic(new SubtopicId(UUID.randomUUID()), command.name(), updated.size() + 1, command.description()));
         subtopics = updated;
     }
 
@@ -86,7 +105,9 @@ public class Course {
         if (command.status().filter(status -> status == SubtopicStatus.ARCHIVED).isPresent()) {
             requireAnotherActiveSubtopic(subtopic);
         }
+        command.description().ifPresent(Subtopic::validateDescription);
         command.name().ifPresent(value -> subtopic.setName(value.trim()));
+        command.description().ifPresent(subtopic::setDescription);
         command.status().ifPresent(subtopic::setStatus);
         command.displayOrder().ifPresent(order -> {
             var updated = new ArrayList<>(subtopics);
@@ -191,5 +212,29 @@ public class Course {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getTerm() {
+        return term;
+    }
+
+    public void setTerm(String term) {
+        this.term = term;
+    }
+
+    public String getFaculty() {
+        return faculty;
+    }
+
+    public void setFaculty(String faculty) {
+        this.faculty = faculty;
+    }
+
+    public String getSemester() {
+        return semester;
+    }
+
+    public void setSemester(String semester) {
+        this.semester = semester;
     }
 }

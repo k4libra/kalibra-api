@@ -6,4 +6,9 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 
 import java.util.Optional;
 
-public record UpdateSubtopicCommand(CourseId courseId, String holderId, SubtopicId subtopicId, Optional<String> name, Optional<Integer> displayOrder, Optional<SubtopicStatus> status) { }
+public record UpdateSubtopicCommand(CourseId courseId, String holderId, SubtopicId subtopicId, Optional<String> name, Optional<Integer> displayOrder, Optional<SubtopicStatus> status, Optional<String> description) {
+    public UpdateSubtopicCommand(CourseId courseId, String holderId, SubtopicId subtopicId, Optional<String> name,
+            Optional<Integer> displayOrder, Optional<SubtopicStatus> status) {
+        this(courseId, holderId, subtopicId, name, displayOrder, status, Optional.empty());
+    }
+}
