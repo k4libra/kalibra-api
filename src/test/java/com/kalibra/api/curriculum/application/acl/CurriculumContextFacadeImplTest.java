@@ -10,6 +10,7 @@ import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery
 import com.kalibra.api.curriculum.domain.model.queries.GetGeneratedExerciseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetVerificationApprovalByCourseQuery;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseCode;
+import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicExerciseCount;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
@@ -29,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,12 +100,13 @@ class CurriculumContextFacadeImplTest {
         when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
         // Arrange
         var approved = GeneratedExerciseFixtures.approved(course, subtopicId);
+        var excluded = UUID.randomUUID();
         var command = ArgumentCaptor.forClass(GenerateExerciseForStudentCommand.class);
         when(generatedExerciseCommandService.handle(any(GenerateExerciseForStudentCommand.class))).thenReturn(Optional.of(approved));
 
         // Act
         var snapshot = facade.provideExerciseForStudent(
-                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.of(0.4)));
+                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.of(0.4), Set.of(excluded)));
 
         // Assert
         assertThat(snapshot).isPresent();
@@ -114,6 +117,8 @@ class CurriculumContextFacadeImplTest {
         verify(generatedExerciseCommandService).handle(command.capture());
         assertThat(command.getValue().mastery()).contains(new MasteryProbability(0.4));
         assertThat(command.getValue().subtopicId()).isEqualTo(subtopicId);
+        assertThat(command.getValue().excludedExerciseIds()).containsExactly(new ExerciseId(excluded));
+        assertThat(command.getValue().targetDifficulty()).isEmpty();
     }
 
     @Test
@@ -123,7 +128,7 @@ class CurriculumContextFacadeImplTest {
         when(generatedExerciseCommandService.handle(any(GenerateExerciseForStudentCommand.class))).thenReturn(Optional.of(discarded));
 
         assertThat(facade.provideExerciseForStudent(
-                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty()))).isEmpty();
+                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty(), Set.of()))).isEmpty();
     }
 
     @Test
@@ -133,7 +138,7 @@ class CurriculumContextFacadeImplTest {
                 .thenThrow(new SubtopicWithoutIngestedMaterialException(subtopicId.value()));
 
         assertThat(facade.provideExerciseForStudent(
-                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty()))).isEmpty();
+                new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty(), Set.of()))).isEmpty();
     }
 
     @Test
@@ -150,6 +155,8 @@ class CurriculumContextFacadeImplTest {
         // Assert
         assertThat(key).isPresent();
         assertThat(key.get().correctOptionKey()).isEqualTo("B");
+        assertThat(key.get().options()).containsExactly("x = 1", "x = 2", "x = 3", "x = 5");
+        assertThat(key.get().explanationSteps()).isNotEmpty();
         assertThat(key.get().subtopicId()).isEqualTo(subtopicId.value());
         assertThat(key.get().explanation()).isEqualTo("Subtract 3, divide by 2");
         assertThat(facade.fetchAnswerKey(discarded.getId().value())).isEmpty();
@@ -173,7 +180,7 @@ class CurriculumContextFacadeImplTest {
         when(courseQueryService.handle(new GetCourseByIdQuery(course.getId()))).thenReturn(Optional.of(course));
         assertThat(facade.fetchSubtopics(course.getId().value())).extracting("name").containsExactly("Inequalities");
         assertThat(facade.fetchHistoricalSubtopics(course.getId().value())).extracting("name").containsExactly("Equations", "Inequalities");
-        assertThat(facade.provideExerciseForStudent(new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty())))
+        assertThat(facade.provideExerciseForStudent(new PracticeExerciseRequest(course.getId().value(), subtopicId.value(), Optional.empty(), Set.of())))
                 .isEmpty();
         verifyNoInteractions(generatedExerciseCommandService);
     }

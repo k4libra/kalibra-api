@@ -33,6 +33,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -191,16 +192,20 @@ class ExerciseAttemptCommandServiceImplTest {
     void shouldRequestAnExerciseAdjustedToTheCurrentMastery() {
         // Arrange
         var command = new RequestPracticeExerciseCommand(holderId, courseId, subtopicId);
+        var answeredId = new ExerciseId(UUID.randomUUID());
         var view = new PracticeExerciseView(exerciseId.value(), subtopicId.value(), "Solve 2x + 3 = 7",
                 List.of("x = 1", "x = 2", "x = 3", "x = 5"), "MEDIUM");
         when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
         when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId))
                 .thenReturn(Optional.of(ProgressFixtures.attempt(holderId, courseId, subtopicId, "B", 0.30, 0.52)));
-        when(externalCurriculumService.provideExercise(command, Optional.of(new MasteryProbability(0.52))))
+        when(exerciseAttemptRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, subtopicId))
+                .thenReturn(Set.of(answeredId));
+        when(externalCurriculumService.provideExercise(command, Optional.of(new MasteryProbability(0.52)), Set.of(answeredId)))
                 .thenReturn(Optional.of(view));
 
         // Act & Assert
         assertThat(service.handle(command)).contains(view);
+        verify(externalCurriculumService).provideExercise(command, Optional.of(new MasteryProbability(0.52)), Set.of(answeredId));
     }
 
     @Test
@@ -210,7 +215,7 @@ class ExerciseAttemptCommandServiceImplTest {
         when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId))
                 .thenReturn(Optional.empty());
         when(subtopicMasteryRepository.findByHolderIdAndSubtopicId(holderId, subtopicId)).thenReturn(Optional.empty());
-        when(externalCurriculumService.provideExercise(command, Optional.empty())).thenReturn(Optional.empty());
+        when(externalCurriculumService.provideExercise(command, Optional.empty(), Set.of())).thenReturn(Optional.empty());
 
         assertThat(service.handle(command)).isEmpty();
     }
@@ -225,4 +230,109 @@ class ExerciseAttemptCommandServiceImplTest {
         assertThatThrownBy(() -> service.handle(notAStudent)).isInstanceOf(NotEnrolledInCourseException.class);
         verifyNoInteractions(externalCurriculumService);
     }
+
+    @Test
+    void shouldRankWeakThenUnknownThenRemainingMasteryAndCycleExpressCalls() {
+        var weak = new SubtopicId(UUID.randomUUID());
+        var unknown = new SubtopicId(UUID.randomUUID());
+        var medium = new SubtopicId(UUID.randomUUID());
+        var high = new SubtopicId(UUID.randomUUID());
+        when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
+        when(externalCurriculumService.fetchPracticableSubtopics(courseId)).thenReturn(List.of(
+                new SubtopicSummary(high.value(), "High", 1), new SubtopicSummary(medium.value(), "Medium", 2),
+                new SubtopicSummary(unknown.value(), "Unknown", 3), new SubtopicSummary(weak.value(), "Weak", 4)));
+        when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, unknown)).thenReturn(Optional.empty());
+        for (var pair : java.util.Map.of(weak, 0.2, medium, 0.4, high, 0.8).entrySet()) {
+            when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, pair.getKey()))
+                    .thenReturn(Optional.of(ProgressFixtures.attempt(holderId, courseId, pair.getKey(), "B", 0.3, pair.getValue())));
+        }
+        when(externalCurriculumService.provideExercise(any(), any(), any())).thenAnswer(call -> {
+            RequestPracticeExerciseCommand selected = call.getArgument(0);
+            return Optional.of(new PracticeExerciseView(UUID.randomUUID(), selected.subtopicId().value(), "Statement",
+                    List.of("1", "2", "3", "4"), "MEDIUM"));
+        });
+        var command = new RequestPracticeExerciseCommand(holderId, courseId, null,
+                com.kalibra.api.progress.domain.model.valueobjects.PracticeMode.EXPRESS);
+        var sequence = java.util.stream.IntStream.range(0, 6).mapToObj(ignored -> service.handle(command).orElseThrow().subtopicId()).toList();
+        assertThat(sequence).containsExactly(weak.value(), unknown.value(), medium.value(), high.value(), weak.value(), unknown.value());
+    }
+
+    @Test
+    void shouldSkipTheMostRecentAttemptSubtopicAndStillSupportASingleCandidate() {
+        var alternative = new SubtopicId(UUID.randomUUID());
+        var recent = ProgressFixtures.attempt(holderId, courseId, subtopicId, "B", 0.3, 0.2);
+        when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
+        when(exerciseAttemptRepository.findFirstByHolderIdAndCourseIdOrderByAnsweredAtDesc(holderId, courseId)).thenReturn(Optional.of(recent));
+        when(exerciseAttemptRepository.findFirstByHolderIdAndSubtopicIdOrderByAnsweredAtDesc(holderId, subtopicId)).thenReturn(Optional.of(recent));
+        when(externalCurriculumService.fetchPracticableSubtopics(courseId)).thenReturn(List.of(
+                new SubtopicSummary(subtopicId.value(), "Weak", 1), new SubtopicSummary(alternative.value(), "Unknown", 2)));
+        when(externalCurriculumService.provideExercise(any(), any(), any())).thenAnswer(call -> {
+            RequestPracticeExerciseCommand selected = call.getArgument(0);
+            return Optional.of(new PracticeExerciseView(UUID.randomUUID(), selected.subtopicId().value(), "Statement",
+                    List.of("1", "2", "3", "4"), "MEDIUM"));
+        });
+        var command = new RequestPracticeExerciseCommand(holderId, courseId, null,
+                com.kalibra.api.progress.domain.model.valueobjects.PracticeMode.EXPRESS);
+        assertThat(service.handle(command).orElseThrow().subtopicId()).isEqualTo(alternative.value());
+        when(externalCurriculumService.fetchPracticableSubtopics(courseId)).thenReturn(List.of(new SubtopicSummary(subtopicId.value(), "Weak", 1)));
+        assertThat(service.handle(command).orElseThrow().subtopicId()).isEqualTo(subtopicId.value());
+    }
+
+    @Test
+    void shouldReturnNoExpressExerciseWhenNothingIsPracticableAndCheckEnrollmentFirst() {
+        var command = new RequestPracticeExerciseCommand(holderId, courseId, null,
+                com.kalibra.api.progress.domain.model.valueobjects.PracticeMode.EXPRESS);
+        assertThatThrownBy(() -> service.handle(command)).isInstanceOf(NotEnrolledInCourseException.class);
+        verifyNoInteractions(externalCurriculumService);
+        when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
+        assertThat(service.handle(command)).isEmpty();
+        verify(externalCurriculumService, never()).provideExercise(any(), any(), any());
+    }
+
+    @Test
+    void shouldKeepExpressRotationIndependentForEachStudentAndCourse() {
+        var otherStudent = new StudentId(UUID.randomUUID());
+        var otherHolder = otherStudent.value().toString();
+        var second = UUID.randomUUID();
+        when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
+        when(externalEnrollmentService.isEnrolled(otherStudent, courseId)).thenReturn(true);
+        when(externalCurriculumService.fetchPracticableSubtopics(courseId)).thenReturn(List.of(
+                new SubtopicSummary(subtopicId.value(), "First", 1), new SubtopicSummary(second, "Second", 2)));
+        when(externalCurriculumService.provideExercise(any(), any(), any())).thenAnswer(call -> {
+            RequestPracticeExerciseCommand selected = call.getArgument(0);
+            return Optional.of(new PracticeExerciseView(UUID.randomUUID(), selected.subtopicId().value(), "Statement",
+                    List.of("1", "2", "3", "4"), "MEDIUM"));
+        });
+        var mode = com.kalibra.api.progress.domain.model.valueobjects.PracticeMode.EXPRESS;
+        assertThat(service.handle(new RequestPracticeExerciseCommand(holderId, courseId, null, mode)).orElseThrow().subtopicId()).isEqualTo(subtopicId.value());
+        assertThat(service.handle(new RequestPracticeExerciseCommand(holderId, courseId, null, mode)).orElseThrow().subtopicId()).isEqualTo(second);
+        assertThat(service.handle(new RequestPracticeExerciseCommand(otherHolder, courseId, null, mode)).orElseThrow().subtopicId()).isEqualTo(subtopicId.value());
+    }
+
+    @Test
+    void shouldFallBackToTheNextExpressCandidateWhenASubtopicHasNoVerifiedExercise() {
+        var second = UUID.randomUUID();
+        var firstAnswered = new ExerciseId(UUID.randomUUID());
+        var secondAnswered = new ExerciseId(UUID.randomUUID());
+        when(externalEnrollmentService.isEnrolled(studentId, courseId)).thenReturn(true);
+        when(externalCurriculumService.fetchPracticableSubtopics(courseId)).thenReturn(List.of(
+                new SubtopicSummary(subtopicId.value(), "Exhausted", 1), new SubtopicSummary(second, "Available", 2)));
+        when(exerciseAttemptRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, subtopicId)).thenReturn(Set.of(firstAnswered));
+        when(exerciseAttemptRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, new SubtopicId(second))).thenReturn(Set.of(secondAnswered));
+        when(externalCurriculumService.provideExercise(any(), any(), any())).thenAnswer(call -> {
+            RequestPracticeExerciseCommand selected = call.getArgument(0);
+            if (selected.subtopicId().equals(subtopicId)) {
+                assertThat((Set<ExerciseId>) call.getArgument(2)).containsExactly(firstAnswered);
+                return Optional.empty();
+            }
+            assertThat((Set<ExerciseId>) call.getArgument(2)).containsExactly(secondAnswered);
+            return Optional.of(new PracticeExerciseView(UUID.randomUUID(), selected.subtopicId().value(), "Statement",
+                    List.of("1", "2", "3", "4"), "MEDIUM"));
+        });
+        var command = new RequestPracticeExerciseCommand(holderId, courseId, null,
+                com.kalibra.api.progress.domain.model.valueobjects.PracticeMode.EXPRESS);
+        assertThat(service.handle(command).orElseThrow().subtopicId()).isEqualTo(second);
+        verify(externalCurriculumService, org.mockito.Mockito.times(2)).provideExercise(any(), any(), any());
+    }
+
 }

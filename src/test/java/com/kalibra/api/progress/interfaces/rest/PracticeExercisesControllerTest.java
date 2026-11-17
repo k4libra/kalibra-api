@@ -4,6 +4,7 @@ import com.kalibra.api.progress.domain.exceptions.NotEnrolledInCourseException;
 import com.kalibra.api.progress.domain.model.commands.RequestPracticeExerciseCommand;
 import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
 import com.kalibra.api.progress.domain.model.valueobjects.PracticeExerciseView;
+import com.kalibra.api.progress.domain.model.valueobjects.PracticeMode;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.progress.domain.services.ExerciseAttemptCommandService;
 import com.kalibra.api.progress.interfaces.rest.transform.ExerciseAttemptAssemblerImpl;
@@ -114,6 +115,30 @@ class PracticeExercisesControllerTest {
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/practice-exercises").with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isForbidden());
+        verify(commandService, never()).handle(any(RequestPracticeExerciseCommand.class));
+    }
+
+    @Test
+    void shouldRequestExpressPracticeWithoutASubtopic() throws Exception {
+        var express = new RequestPracticeExerciseCommand("student-1", courseId, null,
+                PracticeMode.EXPRESS);
+        when(commandService.handle(express)).thenReturn(Optional.of(new PracticeExerciseView(UUID.randomUUID(), subtopicId.value(),
+                "Statement", List.of("1", "2", "3", "4"), "EASY")));
+        mockMvc.perform(post("/api/v1/practice-exercises").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"" + courseId.value() + "\",\"mode\":\"EXPRESS\"}")
+                        .with(user("student-1").roles("STUDENT")))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.subtopicId").value(subtopicId.value().toString()))
+                .andExpect(jsonPath("$.correctOptionKey").doesNotExist()).andExpect(jsonPath("$.explanationSteps").doesNotExist());
+    }
+
+    @Test
+    void shouldRejectMissingSelectionUnknownModeAndExpressWithSubtopic() throws Exception {
+        for (var selection : List.of("", ",\"mode\":\"UNKNOWN\"", ",\"mode\":\"EXPRESS\",\"subtopicId\":\"" + subtopicId.value() + "\"")) {
+            mockMvc.perform(post("/api/v1/practice-exercises").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"courseId\":\"" + courseId.value() + "\"" + selection + "}")
+                            .with(user("student-1").roles("STUDENT")))
+                    .andExpect(status().isBadRequest());
+        }
         verify(commandService, never()).handle(any(RequestPracticeExerciseCommand.class));
     }
 }

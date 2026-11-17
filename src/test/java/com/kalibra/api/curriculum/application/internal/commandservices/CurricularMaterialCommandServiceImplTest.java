@@ -3,6 +3,7 @@ package com.kalibra.api.curriculum.application.internal.commandservices;
 import com.kalibra.api.curriculum.application.internal.outboundservices.acl.ExternalCurricularExtractionService;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.MaterialUploadUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
@@ -75,10 +76,11 @@ class CurricularMaterialCommandServiceImplTest {
     }
 
     @Test
-    void shouldStoreRegisterAndPublishWhenUploadingToAnOwnCourse() {
+    void shouldStoreRegisterAndPublishWhenUploadIsAvailableForAnOwnCourse() {
         // Arrange
         var command = upload(course.getSubtopics().getFirst().getId());
         when(courseRepository.findByIdAndHolderId(course.getId(), "teacher-1")).thenReturn(Optional.of(course));
+        when(externalCurricularExtractionService.isCurricularExtractionAvailable()).thenReturn(true);
         when(materialStorageService.store("unit-1.pdf", command.content())).thenReturn("ref.pdf");
         when(curricularMaterialRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -89,6 +91,17 @@ class CurricularMaterialCommandServiceImplTest {
         assertThat(material.getStatus()).isEqualTo(IngestionStatus.PENDING_INGESTION);
         assertThat(material.getFile().storageReference()).isEqualTo("ref.pdf");
         verify(eventPublisher).publishEvent(new MaterialUploaded(material.getId().value()));
+    }
+
+    @Test
+    void shouldRejectUploadBeforeStorageWhenExtractionIsUnavailable() {
+        when(courseRepository.findByIdAndHolderId(course.getId(), "teacher-1")).thenReturn(Optional.of(course));
+        when(externalCurricularExtractionService.isCurricularExtractionAvailable()).thenReturn(false);
+
+        assertThatThrownBy(() -> service.handle(upload(course.getSubtopics().getFirst().getId())))
+                .isInstanceOf(MaterialUploadUnavailableException.class)
+                .hasMessage("Material upload is temporarily unavailable.");
+        verifyNoInteractions(materialStorageService, curricularMaterialRepository, eventPublisher);
     }
 
     @Test

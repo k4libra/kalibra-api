@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,12 +59,13 @@ class ProgressOutboundServicesTest {
     void shouldAskCurriculumForAnExerciseWithTheCurrentMastery() {
         var service = new ExternalCurriculumService(curriculumContextFacade);
         var command = new RequestPracticeExerciseCommand(studentId.value().toString(), courseId, subtopicId);
+        var answeredId = new ExerciseId(UUID.randomUUID());
         when(curriculumContextFacade.provideExerciseForStudent(
-                new PracticeExerciseRequest(courseId.value(), subtopicId.value(), Optional.of(0.52))))
+                new PracticeExerciseRequest(courseId.value(), subtopicId.value(), Optional.of(0.52), Set.of(answeredId.value()))))
                 .thenReturn(Optional.of(new ExerciseSnapshot(exerciseId.value(), subtopicId.value(), "Solve 2x + 3 = 7",
                         List.of("x = 1", "x = 2", "x = 3", "x = 5"), "MEDIUM")));
 
-        var view = service.provideExercise(command, Optional.of(new MasteryProbability(0.52)));
+        var view = service.provideExercise(command, Optional.of(new MasteryProbability(0.52)), Set.of(answeredId));
 
         assertThat(view).isPresent();
         assertThat(view.get().exerciseId()).isEqualTo(exerciseId.value());

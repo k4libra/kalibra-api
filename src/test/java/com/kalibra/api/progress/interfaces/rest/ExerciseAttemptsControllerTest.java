@@ -18,6 +18,7 @@ import com.kalibra.api.progress.domain.services.ExerciseAttemptQueryService;
 import com.kalibra.api.progress.interfaces.rest.transform.ExerciseAttemptAssemblerImpl;
 import com.kalibra.api.shared.config.JwtAuthenticationFilter;
 import com.kalibra.api.shared.config.SecurityConfig;
+import com.kalibra.api.shared.contracts.curriculum.ExplanationStep;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -205,6 +206,36 @@ class ExerciseAttemptsControllerTest {
         mockMvc.perform(post("/api/v1/exercise-attempts").contentType(MediaType.APPLICATION_JSON).content(body("B"))
                         .with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isForbidden());
+        verify(commandService, never()).handle(any(SubmitAnswerCommand.class));
+    }
+
+    @Test
+    void shouldReturnFullPersistedFeedbackAndElapsedTime() throws Exception {
+        var attempt = ProgressFixtures.attempt("student-1", courseId, subtopicId, "A", 0.30, 0.52);
+        attempt.setTimeSpentSeconds(42);
+        attempt.setOptions(List.of("One", "Two", "Three", "Four"));
+        attempt.setExplanationSteps(List.of(new ExplanationStep("Divide", "Divide by two", "TEXT")));
+        attempt.setKeyIdea("Use inverse operations.");
+        when(commandService.handle(new SubmitAnswerCommand("student-1", courseId, exerciseId, "A", 42))).thenReturn(attempt);
+        mockMvc.perform(post("/api/v1/exercise-attempts").contentType(MediaType.APPLICATION_JSON)
+                        .content(body("A").replace("}", ",\"timeSpentSeconds\":42}"))
+                        .with(user("student-1").roles("STUDENT")))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.timeSpentSeconds").value(42))
+                .andExpect(jsonPath("$.selectedOptionKey").value("A"))
+                .andExpect(jsonPath("$.correctOptionKey").value("B"))
+                .andExpect(jsonPath("$.options[1]").value("Two"))
+                .andExpect(jsonPath("$.explanationSteps[0].kind").value("TEXT"))
+                .andExpect(jsonPath("$.keyIdea").value("Use inverse operations."));
+    }
+
+    @Test
+    void shouldRejectElapsedTimeOutsideZeroTo3600() throws Exception {
+        for (var seconds : List.of(-1, 3601)) {
+            mockMvc.perform(post("/api/v1/exercise-attempts").contentType(MediaType.APPLICATION_JSON)
+                            .content(body("A").replace("}", ",\"timeSpentSeconds\":" + seconds + "}"))
+                            .with(user("student-1").roles("STUDENT")))
+                    .andExpect(status().isBadRequest());
+        }
         verify(commandService, never()).handle(any(SubmitAnswerCommand.class));
     }
 }

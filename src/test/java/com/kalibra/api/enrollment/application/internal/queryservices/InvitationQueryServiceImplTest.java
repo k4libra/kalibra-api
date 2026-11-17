@@ -124,4 +124,28 @@ class InvitationQueryServiceImplTest {
                 .satisfies(line -> assertThat(line.invitationId()).isEqualTo(canceled.getId().value()));
         assertThat(groups.get(1).invitations()).isEmpty();
     }
+
+    @Test
+    void shouldIncludeExpiredRowsAndOverduePendingRowsWithEffectiveStatus() {
+        var overdue = invitationTo(algebra);
+        overdue.setValidity(InvitationValidity.threeDaysFrom(Instant.now().minus(Duration.ofDays(4))));
+        var expired = invitationTo(algebra);
+        expired.setStatus(InvitationStatus.EXPIRED);
+        var live = invitationTo(algebra);
+        when(invitationRepository.findAllByStudentIdAndStatus(studentId, InvitationStatus.PENDING)).thenReturn(List.of(overdue, live));
+        when(invitationRepository.findAllByStudentIdAndStatus(studentId, InvitationStatus.EXPIRED)).thenReturn(List.of(expired));
+        when(externalCurriculumService.fetchCourseSummary(new CourseId(algebra.courseId()))).thenReturn(Optional.of(algebra));
+        when(externalIamService.fetchUserName(teacherId)).thenReturn(new ExternalIamService.UserName("Ana", "Pérez"));
+
+        var views = service.handle(new GetPendingInvitationsByHolderIdQuery(studentId.value().toString(), InvitationStatus.EXPIRED));
+
+        assertThat(views).extracting("invitationId").containsExactly(overdue.getId().value(), expired.getId().value());
+        assertThat(views).allSatisfy(view -> {
+            assertThat(view.status()).isEqualTo("EXPIRED");
+            assertThat(view.courseId()).isEqualTo(algebra.courseId());
+            assertThat(view.teacherName()).isEqualTo("Ana Pérez");
+        });
+        assertThat(overdue.getStatus()).isEqualTo(InvitationStatus.PENDING);
+    }
+
 }

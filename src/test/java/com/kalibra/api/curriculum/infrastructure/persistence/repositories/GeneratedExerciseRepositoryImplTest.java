@@ -5,6 +5,8 @@ import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.GeneratedExercise;
 import com.kalibra.api.curriculum.domain.model.commands.CreateCourseCommand;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseCode;
+import com.kalibra.api.curriculum.domain.model.valueobjects.DifficultyLevel;
+import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.curriculum.domain.model.valueobjects.Pagination;
 import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.curriculum.infrastructure.persistence.entities.GeneratedExerciseJpaEntity;
@@ -22,6 +24,8 @@ import org.springframework.data.domain.Sort;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -100,5 +104,35 @@ class GeneratedExerciseRepositoryImplTest {
         assertThat(filtered.items()).isEmpty();
         verify(jpaRepository).findAllByCourseId(eq(course.getId().value()), pageable.capture());
         assertThat(pageable.getValue().getSort().getOrderFor("generatedAt").getDirection()).isEqualTo(Sort.Direction.DESC);
+    }
+
+    @Test
+    void shouldBoundThePickWhenLookingUpThePool() {
+        var answered = new ExerciseId(UUID.randomUUID());
+        when(jpaRepository.findAvailableForStudent(course.getId().value(), subtopicId.value(), "MEDIUM",
+                List.of(answered.value()), false, PageRequest.of(0, 1))).thenReturn(List.of(entity));
+        when(mapper.toDomain(entity)).thenReturn(exercise);
+        when(jpaRepository.countAvailableForStudent(course.getId().value(), subtopicId.value(), "MEDIUM",
+                List.of(answered.value()), false)).thenReturn(2L);
+
+        assertThat(repository.findAvailableForStudent(course.getId(), subtopicId, DifficultyLevel.MEDIUM, Set.of(answered)))
+                .containsSame(exercise);
+        assertThat(repository.countAvailableForStudent(course.getId(), subtopicId, DifficultyLevel.MEDIUM, Set.of(answered)))
+                .isEqualTo(2);
+        verify(jpaRepository).findAvailableForStudent(course.getId().value(), subtopicId.value(), "MEDIUM",
+                List.of(answered.value()), false, PageRequest.of(0, 1));
+    }
+
+    @Test
+    void shouldDisableExclusionPredicateAndAvoidEmptySqlInWhenThereAreNoAnsweredIds() {
+        var sentinel = List.of(new UUID(0, 0));
+        when(jpaRepository.findAvailableForStudent(course.getId().value(), subtopicId.value(), "EASY",
+                sentinel, true, PageRequest.of(0, 1))).thenReturn(List.of());
+        when(jpaRepository.countAvailableForStudent(course.getId().value(), subtopicId.value(), "EASY",
+                sentinel, true)).thenReturn(4L);
+
+        assertThat(repository.findAvailableForStudent(course.getId(), subtopicId, DifficultyLevel.EASY, Set.of())).isEmpty();
+        assertThat(repository.countAvailableForStudent(course.getId(), subtopicId, DifficultyLevel.EASY, Set.of())).isEqualTo(4);
+        verifyNoInteractions(mapper);
     }
 }

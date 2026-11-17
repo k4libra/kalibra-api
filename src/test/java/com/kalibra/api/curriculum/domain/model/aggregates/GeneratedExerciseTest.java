@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,7 +31,7 @@ class GeneratedExerciseTest {
     private final GenerateExercisesForSubtopicCommand teacherCommand = new GenerateExercisesForSubtopicCommand(
             "teacher-1", new CourseId(UUID.randomUUID()), new SubtopicId(UUID.randomUUID()), 2);
     private final GenerateExerciseForStudentCommand studentCommand = new GenerateExerciseForStudentCommand(
-            new CourseId(UUID.randomUUID()), new SubtopicId(UUID.randomUUID()), Optional.of(new MasteryProbability(0.4)));
+            new CourseId(UUID.randomUUID()), new SubtopicId(UUID.randomUUID()), Optional.of(new MasteryProbability(0.4)), Set.of(), Optional.empty());
 
     private static List<ExerciseOption> options() {
         return List.of(new ExerciseOption("A", "x = 1", false), new ExerciseOption("b", "x = 2", true),

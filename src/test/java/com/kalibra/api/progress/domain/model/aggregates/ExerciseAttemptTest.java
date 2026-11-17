@@ -61,4 +61,36 @@ class ExerciseAttemptTest {
         assertThatThrownBy(() -> ExerciseAttempt.record(command, ProgressFixtures.answerKey(subtopicId), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void shouldSnapshotAnswerContentAndAcceptElapsedTimeBoundaries() {
+        var options = new java.util.ArrayList<>(java.util.List.of("1", "2", "3", "4"));
+        var steps = new java.util.ArrayList<>(java.util.List.of(
+                new com.kalibra.api.shared.contracts.curriculum.ExplanationStep("Divide", "x = 4 / 2", "FORMULA")));
+        var key = new com.kalibra.api.progress.domain.model.valueobjects.AnswerKey("Solve", "B", "Divide by two.", subtopicId,
+                options, steps, "Use inverse operations.");
+        for (Integer seconds : java.util.Arrays.asList(null, 0, 3600)) {
+            var attempt = ExerciseAttempt.record(new SubmitAnswerCommand("student-1", courseId, exerciseId, "a", seconds), key, change);
+            assertThat(attempt.getTimeSpentSeconds()).isEqualTo(seconds);
+            assertThat(attempt.getSelectedOptionKey()).isEqualTo("A");
+            assertThat(attempt.getCorrectOptionKey()).isEqualTo("B");
+            assertThat(attempt.getOptions()).containsExactly("1", "2", "3", "4");
+            assertThat(attempt.getExplanationSteps()).containsExactlyElementsOf(steps);
+            assertThat(attempt.getKeyIdea()).isEqualTo("Use inverse operations.");
+        }
+        var attempt = ExerciseAttempt.record(new SubmitAnswerCommand("student-1", courseId, exerciseId, "B"), key, change);
+        options.clear();
+        steps.clear();
+        assertThat(attempt.getOptions()).hasSize(4);
+        assertThat(attempt.getExplanationSteps()).hasSize(1);
+    }
+
+    @Test
+    void shouldRejectInvalidElapsedTimeInTheDomain() {
+        for (var seconds : java.util.List.of(-1, 3601)) {
+            assertThatThrownBy(() -> ExerciseAttempt.record(new SubmitAnswerCommand("student-1", courseId, exerciseId, "A", seconds),
+                    ProgressFixtures.answerKey(subtopicId), change)).isInstanceOf(IllegalArgumentException.class);
+        }
+    }
+
 }

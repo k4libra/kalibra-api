@@ -304,4 +304,74 @@ class CoursesControllerTest {
                 .andExpect(jsonPath("$[0].subtopics[1].locked").value(false));
         verify(queryService).handle(new GetLockedSubtopicIdsByCourseQuery(course.getId(), "teacher-1"));
     }
+
+    @Test
+    void shouldCreateCourseWithMetadataAndSubtopicObjects() throws Exception {
+        when(commandService.handle(any(CreateCourseCommand.class))).thenAnswer(call -> Course.create(call.getArgument(0)));
+        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1").roles("TEACHER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"name":"Algebra","code":"MAT101","term":"2026-II","faculty":"Engineering","semester":"4",
+                         "subtopics":[{"name":"Equations","description":"Linear equations"}],"subtopicNames":["Legacy"]}
+                        """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.term").value("2026-II"))
+                .andExpect(jsonPath("$.faculty").value("Engineering"))
+                .andExpect(jsonPath("$.semester").value("4"))
+                .andExpect(jsonPath("$.subtopics[0].name").value("Equations"))
+                .andExpect(jsonPath("$.subtopics[0].description").value("Linear equations"));
+    }
+
+    @Test
+    void shouldPassCourseMetadataInPatchAndPreserveOmittedFields() throws Exception {
+        when(commandService.handle(any(UpdateCourseCommand.class))).thenAnswer(call -> {
+            course.update(call.getArgument(0));
+            return course;
+        });
+        mockMvc.perform(patch("/api/v1/courses/{id}", course.getId().value()).with(user("teacher-1").roles("TEACHER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"term":"2026-II","faculty":"Engineering","semester":"4"}
+                        """))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.term").value("2026-II"))
+                .andExpect(jsonPath("$.faculty").value("Engineering"))
+                .andExpect(jsonPath("$.semester").value("4"))
+                .andExpect(jsonPath("$.name").value("Algebra"));
+    }
+
+    @Test
+    void shouldAddAndPatchDescriptionIndependentlyOfLockedName() throws Exception {
+        when(commandService.handle(any(AddSubtopicCommand.class))).thenAnswer(call -> {
+            course.addSubtopic(call.getArgument(0));
+            return course;
+        });
+        mockMvc.perform(post("/api/v1/courses/{id}/subtopics", course.getId().value())
+                        .with(user("teacher-1").roles("TEACHER")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Limits\",\"description\":\"Initial description\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.subtopics[2].description").value("Initial description"));
+        when(commandService.handle(any(UpdateSubtopicCommand.class))).thenAnswer(call -> {
+            course.updateSubtopic(call.getArgument(0), true);
+            return course;
+        });
+        mockMvc.perform(patch("/api/v1/courses/{id}/subtopics/{subtopic}", course.getId().value(), course.getSubtopics().getLast().getId().value())
+                        .with(user("teacher-1").roles("TEACHER")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"Updated description\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.subtopics[2].description").value("Updated description"));
+    }
+
+    @Test
+    void shouldRejectDescriptionOver280OnCreateAddAndPatch() throws Exception {
+        var description = "x".repeat(281);
+        mockMvc.perform(post("/api/v1/courses").with(user("teacher-1").roles("TEACHER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Algebra\",\"code\":\"MAT101\",\"subtopics\":[{\"name\":\"Limits\",\"description\":\"" + description + "\"}]}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(post("/api/v1/courses/{id}/subtopics", course.getId().value()).with(user("teacher-1").roles("TEACHER"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Limits\",\"description\":\"" + description + "\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(patch("/api/v1/courses/{id}/subtopics/{subtopic}", course.getId().value(), course.getSubtopics().getFirst().getId().value())
+                        .with(user("teacher-1").roles("TEACHER")).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"description\":\"" + description + "\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(commandService);
+    }
+
 }

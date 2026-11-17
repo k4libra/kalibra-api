@@ -2,6 +2,7 @@ package com.kalibra.api.curriculum.application.internal.outboundservices.acl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.kalibra.api.curriculum.application.internal.outboundservices.storage.MaterialStorageService;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
 import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
@@ -17,18 +18,25 @@ import com.kalibra.api.curriculum.domain.model.valueobjects.ExerciseOrigin;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MasteryProbability;
 import com.kalibra.api.curriculum.domain.model.valueobjects.MaterialFormat;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
+import com.kalibra.api.shared.engine.EngineProperties;
 import com.kalibra.api.shared.engine.EngineTaskClient;
 import com.kalibra.api.shared.engine.EngineTaskFailedException;
 import com.kalibra.api.shared.engine.EngineUnavailableException;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,7 +106,7 @@ class ExternalEngineServicesTest {
         var service = new ExternalExerciseGenerationService(engineTaskClient, courseRepository);
 
         var attempts = service.generate(
-                new GenerateExerciseForStudentCommand(course.getId(), subtopicId, Optional.of(new MasteryProbability(0.52))), context);
+                new GenerateExerciseForStudentCommand(course.getId(), subtopicId, Optional.of(new MasteryProbability(0.52)), Set.of(), Optional.empty()), context);
 
         assertThat((Map<String, Object>) payload.getValue())
                 .containsEntry("courseId", course.getId().value().toString())
@@ -106,7 +114,8 @@ class ExternalEngineServicesTest {
                 .containsEntry("subtopicName", "Equations")
                 .containsEntry("normalizedContent", "Linear equations")
                 .containsEntry("masteryProbability", 0.52)
-                .containsEntry("quantity", 1);
+                .containsEntry("quantity", 1)
+                .doesNotContainKey("targetDifficulty");
         assertThat(attempts).hasSize(2);
         var discarded = attempts.getFirst();
         assertThat(discarded.isAvailableToStudents()).isFalse();
@@ -134,7 +143,8 @@ class ExternalEngineServicesTest {
 
         assertThat((Map<String, Object>) payload.getValue())
                 .containsEntry("quantity", 3)
-                .containsEntry("masteryProbability", null);
+                .containsEntry("masteryProbability", null)
+                .doesNotContainKey("targetDifficulty");
         assertThat(attempts).extracting(GeneratedExercise::getOrigin).containsOnly(ExerciseOrigin.TEACHER_REQUEST);
     }
 
@@ -150,6 +160,25 @@ class ExternalEngineServicesTest {
 
         assertThat(attempts).hasSize(1);
         assertThat(attempts.getFirst().isAvailableToStudents()).isTrue();
+    }
+
+    @ParameterizedTest
+    @EnumSource(DifficultyLevel.class)
+    @SuppressWarnings("unchecked")
+    void shouldSendTheTargetDifficultyWhenItIsExplicit(DifficultyLevel difficulty) throws Exception {
+        var subtopicId = course.getSubtopics().getFirst().getId();
+        var payload = ArgumentCaptor.forClass(Object.class);
+        when(courseRepository.findById(course.getId())).thenReturn(Optional.of(course));
+        when(engineTaskClient.submit(eq("exercise-generations"), payload.capture())).thenReturn(json(RUNS));
+        var service = new ExternalExerciseGenerationService(engineTaskClient, courseRepository);
+
+        service.generate(new GenerateExerciseForStudentCommand(course.getId(), subtopicId,
+                Optional.of(new MasteryProbability(0.95)), Set.of(), Optional.of(difficulty)), context);
+
+        assertThat((Map<String, Object>) payload.getValue())
+                .containsEntry("targetDifficulty", difficulty.name())
+                .containsEntry("masteryProbability", 0.95)
+                .containsEntry("quantity", 1);
     }
 
     @Test
@@ -173,7 +202,10 @@ class ExternalEngineServicesTest {
         when(materialStorageService.temporaryUrl("ref.pdf")).thenReturn("https://r2.example/ref.pdf?sig=1");
         when(engineTaskClient.submit(eq("curricular-extractions"), payload.capture()))
                 .thenReturn(json("{\"normalizedText\":\"Ecuaciones lineales\",\"pageCount\":3}"));
-        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService);
+        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService,
+                RestClient.create(),
+                new EngineProperties("http://engine", Duration.ofSeconds(5),
+                        Duration.ofMinutes(4), Duration.ofSeconds(30)));
 
         var content = service.extract(material);
 
@@ -190,7 +222,10 @@ class ExternalEngineServicesTest {
         when(materialStorageService.temporaryUrl("ref.pdf")).thenReturn("https://r2.example/ref.pdf?sig=1");
         when(engineTaskClient.submit(eq("curricular-extractions"), any()))
                 .thenThrow(new EngineTaskFailedException(422, "No se pudo extraer el contenido del material."));
-        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService);
+        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService,
+                RestClient.create(),
+                new EngineProperties("http://engine", Duration.ofSeconds(5),
+                        Duration.ofMinutes(4), Duration.ofSeconds(30)));
 
         assertThat(service.extract(material())).isEmpty();
     }
@@ -198,7 +233,10 @@ class ExternalEngineServicesTest {
     @Test
     void shouldKeepTheMaterialPendingWhenTheEngineOrItsProviderIsDown() {
         when(materialStorageService.temporaryUrl("ref.pdf")).thenReturn("https://r2.example/ref.pdf?sig=1");
-        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService);
+        var service = new ExternalCurricularExtractionService(engineTaskClient, materialStorageService,
+                RestClient.create(),
+                new EngineProperties("http://engine", Duration.ofSeconds(5),
+                        Duration.ofMinutes(4), Duration.ofSeconds(30)));
 
         when(engineTaskClient.submit(eq("curricular-extractions"), any()))
                 .thenThrow(new EngineTaskFailedException(502, "Un proveedor externo de IA no respondió correctamente."));
@@ -207,5 +245,23 @@ class ExternalEngineServicesTest {
         when(engineTaskClient.submit(eq("curricular-extractions"), any()))
                 .thenThrow(new EngineUnavailableException("timeout"));
         assertThatThrownBy(() -> service.extract(material())).isInstanceOf(EngineUnavailableException.class);
+    }
+
+    @Test
+    void shouldReadStructuredStepsAndKeyIdeaFromGenerationResponse() throws Exception {
+        var runs = json(RUNS);
+        var content = (ObjectNode) runs.get(0).path("attempts").get(1).path("exercise");
+        content.put("keyIdea", "Usa operaciones inversas.");
+        content.set("explanationSteps", json("""
+                [{"title":"Restar","detail":"Resta 3.","kind":"TEXT"},
+                 {"title":"Dividir","detail":"x = 4 / 2","kind":"FORMULA"}]
+                """));
+        when(courseRepository.findById(course.getId())).thenReturn(Optional.of(course));
+        when(engineTaskClient.submit(eq("exercise-generations"), any())).thenReturn(runs);
+        var service = new ExternalExerciseGenerationService(engineTaskClient, courseRepository);
+        var result = service.generate(new GenerateExerciseForStudentCommand(course.getId(), course.getSubtopics().getFirst().getId(), Optional.empty(), Set.of(), Optional.empty()), context).getLast();
+        assertThat(result.getKeyIdea()).isEqualTo("Usa operaciones inversas.");
+        assertThat(result.getExplanationSteps()).extracting("kind").containsExactly("TEXT", "FORMULA");
+        assertThat(result.getExplanation()).isEqualTo("Resta 3 y divide entre 2.");
     }
 }

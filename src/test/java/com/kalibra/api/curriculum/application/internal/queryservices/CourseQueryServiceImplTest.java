@@ -2,18 +2,23 @@ package com.kalibra.api.curriculum.application.internal.queryservices;
 
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotFoundException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
+import com.kalibra.api.curriculum.domain.model.aggregates.CurricularMaterial;
 import com.kalibra.api.curriculum.domain.model.commands.CreateCourseCommand;
 import com.kalibra.api.curriculum.domain.model.queries.GetCourseByIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetCoursesByHolderIdQuery;
 import com.kalibra.api.curriculum.domain.model.queries.GetLockedSubtopicIdsByCourseQuery;
+import com.kalibra.api.curriculum.domain.model.queries.GetPracticableSubtopicsQuery;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseCode;
 import com.kalibra.api.curriculum.domain.model.valueobjects.CourseId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.IngestionStatus;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
 import com.kalibra.api.curriculum.domain.repositories.CourseRepository;
 import com.kalibra.api.curriculum.domain.repositories.CurricularMaterialRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -78,5 +83,21 @@ class CourseQueryServiceImplTest {
         assertThatThrownBy(() -> service.handle(new GetLockedSubtopicIdsByCourseQuery(course.getId(), "teacher-2")))
                 .isInstanceOf(CourseNotFoundException.class);
         verifyNoInteractions(curricularMaterialRepository);
+    }
+
+    @Test
+    void shouldOfferOnlyActiveSubtopicsWithReadyMaterials() {
+        var created = Course.create(new CreateCourseCommand("teacher-1", "Algebra", new CourseCode("MAT101"),
+                List.of("Ready", "Pending", "Archived")));
+        created.getSubtopics().getLast().setStatus(SubtopicStatus.ARCHIVED);
+        when(courseRepository.findById(created.getId())).thenReturn(Optional.of(created));
+        var ready = created.getSubtopics().getFirst();
+        var material = Mockito.mock(CurricularMaterial.class);
+        when(curricularMaterialRepository.findAllByCourseIdAndSubtopicIdAndStatus(created.getId(), ready.getId(),
+                IngestionStatus.READY)).thenReturn(List.of(material));
+        var query = new GetPracticableSubtopicsQuery(created.getId());
+        assertThat(service.handle(query)).containsExactly(ready);
+        verify(curricularMaterialRepository, Mockito.never()).findAllByCourseIdAndSubtopicIdAndStatus(
+                created.getId(), created.getSubtopics().getLast().getId(), IngestionStatus.READY);
     }
 }

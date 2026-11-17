@@ -4,6 +4,7 @@ import com.kalibra.api.progress.ProgressFixtures;
 import com.kalibra.api.progress.domain.model.aggregates.ExerciseAttempt;
 import com.kalibra.api.progress.domain.model.valueobjects.AnswerResult;
 import com.kalibra.api.progress.domain.model.valueobjects.CourseId;
+import com.kalibra.api.progress.domain.model.valueobjects.ExerciseId;
 import com.kalibra.api.progress.domain.model.valueobjects.Pagination;
 import com.kalibra.api.progress.domain.model.valueobjects.SubtopicId;
 import com.kalibra.api.progress.infrastructure.persistence.entities.ExerciseAttemptJpaEntity;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Sort;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,6 +30,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +50,18 @@ class ExerciseAttemptRepositoryImplTest {
     private final SubtopicId subtopicId = new SubtopicId(UUID.randomUUID());
     private final ExerciseAttempt attempt = ProgressFixtures.attempt(holderId, courseId, subtopicId, "B", 0.30, 0.52);
     private final ExerciseAttemptJpaEntity entity = new ExerciseAttemptJpaEntity();
+
+    @Test
+    void shouldReturnOnlyOwnAnsweredIdsWhenQueryingBySubtopic() {
+        var answered = UUID.randomUUID();
+        when(jpaRepository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, subtopicId.value()))
+                .thenReturn(Set.of(answered));
+
+        assertThat(repository.findAnsweredExerciseIdsByHolderIdAndSubtopicId(holderId, subtopicId))
+                .containsExactly(new ExerciseId(answered));
+        assertThat(repository.findAnsweredExerciseIdsByHolderIdAndSubtopicId("another-holder", subtopicId)).isEmpty();
+        verifyNoInteractions(mapper);
+    }
 
     @Test
     void shouldSaveAndFlush() {

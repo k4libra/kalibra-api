@@ -17,6 +17,7 @@ import com.kalibra.api.enrollment.domain.model.queries.GetPendingInvitationsByHo
 import com.kalibra.api.enrollment.domain.model.valueobjects.CourseId;
 import com.kalibra.api.enrollment.domain.model.valueobjects.Email;
 import com.kalibra.api.enrollment.domain.model.valueobjects.InvitationId;
+import com.kalibra.api.enrollment.domain.model.valueobjects.InvitationStatus;
 import com.kalibra.api.enrollment.domain.model.valueobjects.PendingInvitationView;
 import com.kalibra.api.enrollment.domain.model.valueobjects.StudentId;
 import com.kalibra.api.enrollment.domain.services.InvitationCommandService;
@@ -241,5 +242,19 @@ class InvitationsControllerTest {
     void shouldForbidListingPendingInvitationsToTeachers() throws Exception {
         mockMvc.perform(get("/api/v1/invitations").with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void shouldListExpiredInvitationsWithCourseTeacherAndStatus() throws Exception {
+        var student = UUID.randomUUID().toString();
+        var course = UUID.randomUUID();
+        var view = new PendingInvitationView(
+                UUID.randomUUID(), "Algebra", "teacher@kalibra.pe", java.time.Instant.now(), course, "Ana Pérez", "EXPIRED", java.time.Instant.now());
+        when(queryService.handle(new GetPendingInvitationsByHolderIdQuery(student,
+                InvitationStatus.EXPIRED))).thenReturn(List.of(view));
+        mockMvc.perform(get("/api/v1/invitations").param("status", "EXPIRED").with(user(student).roles("STUDENT")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].courseId").value(course.toString()))
+                .andExpect(jsonPath("$[0].teacherName").value("Ana Pérez"))
+                .andExpect(jsonPath("$[0].status").value("EXPIRED"));
     }
 }

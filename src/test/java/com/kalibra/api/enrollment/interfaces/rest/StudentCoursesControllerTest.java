@@ -43,7 +43,7 @@ class StudentCoursesControllerTest {
     void shouldListTheCoursesOfTheStudentWithTheirSubtopics() throws Exception {
         var studentId = UUID.randomUUID();
         var course = new EnrolledCourse(UUID.randomUUID(), "Algebra", "MAT101", "Profesor Test Uno",
-                List.of(new EnrolledCourse.EnrolledSubtopic(UUID.randomUUID(), "Vectores", 1)), Instant.now());
+                List.of(new EnrolledCourse.EnrolledSubtopic(UUID.randomUUID(), "Vectores", 1)), Instant.now(), null, null, null);
         when(queryService.handle(new GetEnrolledCoursesByStudentQuery(new StudentId(studentId))))
                 .thenReturn(List.of(course));
 

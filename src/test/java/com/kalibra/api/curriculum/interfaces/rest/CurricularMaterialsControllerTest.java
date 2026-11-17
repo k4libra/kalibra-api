@@ -1,6 +1,7 @@
 package com.kalibra.api.curriculum.interfaces.rest;
 
 import com.kalibra.api.curriculum.domain.exceptions.CourseNotOwnedByTeacherException;
+import com.kalibra.api.curriculum.domain.exceptions.MaterialUploadUnavailableException;
 import com.kalibra.api.curriculum.domain.exceptions.SubtopicArchivedException;
 import com.kalibra.api.curriculum.domain.exceptions.UnsupportedMaterialFormatException;
 import com.kalibra.api.curriculum.domain.model.aggregates.Course;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,6 +95,25 @@ class CurricularMaterialsControllerTest {
         assertThat(captor.getValue().holderId()).isEqualTo("teacher-1");
         assertThat(captor.getValue().format()).isEqualTo(MaterialFormat.PDF);
         assertThat(captor.getValue().content()).containsExactly(1, 2, 3);
+    }
+
+    @Test
+    void shouldReturn503WithProblemCodeWhenMaterialUploadIsUnavailable() throws Exception {
+        when(commandService.handle(any(UploadCurricularMaterialCommand.class)))
+                .thenThrow(new MaterialUploadUnavailableException());
+
+        mockMvc.perform(multipart("/api/v1/courses/{id}/curricular-materials", course.getId().value())
+                        .file(pdf)
+                        .param("subtopicIds", subtopicId())
+                        .param("fileName", "unit-1.pdf")
+                        .param("format", "PDF")
+                        .with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(content()
+                        .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(503))
+                .andExpect(jsonPath("$.code").value("MATERIAL_UPLOAD_UNAVAILABLE"))
+                .andExpect(jsonPath("$.detail").value("Material upload is temporarily unavailable."));
     }
 
     @Test
@@ -234,4 +255,18 @@ class CurricularMaterialsControllerTest {
                         .file(pdf).param("subtopicIds", subtopicId()).param("fileName", "unit-1.pdf").param("format", "pdf").with(user("teacher-1").roles("TEACHER")))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.status").value(409));
     }
+
+    @Test
+    void shouldExposeStoredSizeAndIngestedPageCount() throws Exception {
+        var ready = registered();
+        ready.markReady(new com.kalibra.api.curriculum.domain.model.valueobjects.CurricularContent("Equations", 7));
+        when(queryService.handle(any(GetCurricularMaterialsByCourseQuery.class)))
+                .thenReturn(new CurricularMaterialPage(List.of(ready, registered()), 0, 20, 2, 1));
+        mockMvc.perform(get("/api/v1/courses/{id}/curricular-materials", course.getId().value()).with(user("teacher-1").roles("TEACHER")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].sizeBytes").value(3))
+                .andExpect(jsonPath("$.content[0].pageCount").value(7))
+                .andExpect(jsonPath("$.content[1].sizeBytes").value(3))
+                .andExpect(jsonPath("$.content[1].pageCount").doesNotExist());
+    }
+
 }
