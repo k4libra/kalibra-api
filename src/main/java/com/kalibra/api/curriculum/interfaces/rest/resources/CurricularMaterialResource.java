@@ -16,5 +16,7 @@ public record CurricularMaterialResource(
                 description = "READY means exercises can be generated from it; INGESTION_ERROR comes with failureReason")
         String status,
         String failureReason,
+        long sizeBytes,
+        Integer pageCount,
         Instant uploadedAt
 ) { }
