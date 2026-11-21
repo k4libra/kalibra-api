@@ -343,6 +343,24 @@ They are disabled by default, so no deployed environment publishes the API surfa
 call `sign-in` with "Try it out" first — the browser stores the JWT cookie and sends it
 on every later call.
 
+### Deployment (Railway)
+
+Production runs on Railway from `main`, built with this `Dockerfile` (it has no BuildKit cache
+mounts, which Railway rejects without a hard-coded service-id prefix). Map the Railway PostgreSQL
+service with reference variables and reach the engine over the private network:
+
+| Variable | Value |
+| -------- | ----- |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | `${{Postgres.PGHOST}}`, `${{Postgres.PGPORT}}`, `${{Postgres.PGDATABASE}}`, `${{Postgres.PGUSER}}`, `${{Postgres.PGPASSWORD}}` |
+| `SERVER_PORT` | `8080` (also the public domain's target port) |
+| `ENGINE_BASE_URL` | `http://${{engine.RAILWAY_PRIVATE_DOMAIN}}:8000` |
+| `CORS_ALLOWED_ORIGIN` | The web panel origin, e.g. `https://<project>.vercel.app` |
+| `JWT_SECRET`, `R2_*` | Secrets; keep `JWT_COOKIE_SECURE=true` and `KALIBRA_SEED_GENERIC_USERS=false` |
+
+Use `/actuator/health` as the healthcheck path. The session cookie is `SameSite=Lax`, so the web
+panel must reach this API from the same site: either through its `/api` rewrite (Vercel proxies
+the request, 120-second limit) or from a sibling subdomain of a shared custom domain.
+
 ## Git Workflow
 
 <p align="justify">

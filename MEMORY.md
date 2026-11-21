@@ -1,6 +1,7 @@
 # MEMORY.md - Kalibra API
 
-## Current status (2026-11-16)
+## Current status (2026-11-21)
+- `release/v1.0.0` (2026-11-21): Railway deploy prep. Dockerfile drops BuildKit cache mounts (Railway rejects them without a hard-coded service-id prefix); README documents Railway variables. Verified: `mvn clean verify` 597 tests, fresh-DB compose run applies all Flyway migrations, 22-step HTTP smoke through the web proxy passed.
 - `feature/remove-redis` (from develop, uncommitted): Redis removed. Extraction/generation use `EngineTaskClient` (`ENGINE_TASK_TIMEOUT`); gap maps use `InMemoryGapMapCacheService`. Prior live web/mobile E2E passed without Redis.
 - Exercise reuse pool + difficulty fallback implemented: answered IDs pass through progress/OHS, random approved pool lookup, explicit engine target, HARD -> MEDIUM and async refill; curriculum V5 adds the pool index. `mvn clean verify`: 597 tests pass (5 ArchUnit), no DB. Existing work preserved; no staging, commit, push or branch switch.
 - Material upload gate complete: teacher GET `/api/v1/curricular-extraction-availability`; unavailable uploads fail before storage with 503 `MATERIAL_UPLOAD_UNAVAILABLE`. Seven real HTTP checks passed in an isolated web context (teacher true/false, anonymous 401, three roles 403, upload 503); engine/web changes remain outside this API task.
