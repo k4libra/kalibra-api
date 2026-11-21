@@ -1,5 +1,7 @@
 package com.kalibra.api.iam.domain.model.commands;
 
+import com.kalibra.api.iam.domain.model.valueobjects.ClientApplication;
 import com.kalibra.api.iam.domain.model.valueobjects.Email;
 
-public record SignUpCommand(Email email, String rawPassword) { }
+public record SignUpCommand(Email email, String firstName, String lastName, String rawPassword,
+                            ClientApplication application) { }

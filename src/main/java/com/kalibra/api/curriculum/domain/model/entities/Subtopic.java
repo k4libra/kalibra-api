@@ -1,0 +1,83 @@
+package com.kalibra.api.curriculum.domain.model.entities;
+
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicId;
+import com.kalibra.api.curriculum.domain.model.valueobjects.SubtopicStatus;
+
+public class Subtopic {
+
+    private SubtopicId id;
+    private String name;
+    private int displayOrder;
+    private SubtopicStatus status = SubtopicStatus.ACTIVE;
+
+    private String description;
+
+    // public: required by MapStruct, which generates its mapper impl in a different package.
+    public Subtopic() {
+    }
+
+    public Subtopic(SubtopicId id, String name, int displayOrder) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Subtopic name cannot be blank");
+        }
+        this.id = id;
+        this.name = name.trim();
+        this.displayOrder = displayOrder;
+    }
+
+    public Subtopic(SubtopicId id, String name, int displayOrder, String description) {
+        this(id, name, displayOrder);
+        setDescription(description);
+    }
+
+    public static void validateDescription(String description) {
+        if (description != null && description.length() > 280) {
+            throw new IllegalArgumentException("La descripción del subtema no puede superar los 280 caracteres");
+        }
+    }
+
+    public boolean isActive() {
+        return status == SubtopicStatus.ACTIVE;
+    }
+
+    public SubtopicStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(SubtopicStatus status) {
+        this.status = status;
+    }
+
+    public SubtopicId getId() {
+        return id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public int getDisplayOrder() {
+        return displayOrder;
+    }
+
+    public void setId(SubtopicId id) {
+        this.id = id;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDisplayOrder(int displayOrder) {
+        this.displayOrder = displayOrder;
+    }
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        validateDescription(description);
+        this.description = description;
+    }
+
+}

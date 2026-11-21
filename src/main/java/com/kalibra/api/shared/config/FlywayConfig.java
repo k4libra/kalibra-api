@@ -20,4 +20,37 @@ public class FlywayConfig {
                 .load();
         return new FlywayMigrationInitializer(flyway, null);
     }
+
+    @Bean
+    public FlywayMigrationInitializer curriculumFlywayMigrationInitializer(DataSource dataSource) {
+        var flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("curriculum")
+                .table("flyway_curriculum_courses")
+                .locations("classpath:db/migration/curriculum")
+                .load();
+        return new FlywayMigrationInitializer(flyway, null);
+    }
+
+    @Bean
+    public FlywayMigrationInitializer enrollmentFlywayMigrationInitializer(DataSource dataSource) {
+        var flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("enrollment")
+                .table("flyway_enrollment_invitations")
+                .locations("classpath:db/migration/enrollment")
+                .load();
+        return new FlywayMigrationInitializer(flyway, null);
+    }
+
+    @Bean
+    public FlywayMigrationInitializer progressFlywayMigrationInitializer(DataSource dataSource) {
+        var flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .schemas("progress")
+                .table("flyway_progress_exercise_attempts")
+                .locations("classpath:db/migration/progress")
+                .load();
+        return new FlywayMigrationInitializer(flyway, null);
+    }
 }
